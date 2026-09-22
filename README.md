@@ -181,7 +181,7 @@ curl -H "Authorization: Bearer $VOF_API_TOKEN" \
 **Requirements:** Python 3.12+, [uv](https://docs.astral.sh/uv/), and a Bluetooth LE adapter (only for real devices; the mock adapter needs none, and the Bluetooth library isn't even loaded).
 
 ```bash
-git clone https://github.com/<org>/vitals-on-fhir.git
+git clone https://github.com/soroushdty/vitals-on-fhir.git
 cd vitals-on-fhir
 uv sync
 cp .env.example .env          # then set VOF_API_TOKEN
