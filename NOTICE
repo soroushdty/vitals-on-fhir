@@ -1,0 +1,29 @@
+vitals-on-fhir
+Copyright (C) 2026 The vitals-on-fhir contributors
+
+This program is licensed under the GNU Affero General Public License,
+version 3 or (at your option) any later version. See LICENSE.
+
+-----------------------------------------------------------------------
+Portions adapted from EviTrace
+-----------------------------------------------------------------------
+Source:     https://github.com/soroushdty/EviTrace
+Copyright:  (C) Soroush Dianaty
+Original license: GNU General Public License v3.0
+
+The copyright holder of EviTrace has contributed the following adapted
+material to vitals-on-fhir under AGPL-3.0-or-later:
+
+  - tests/test_dependency_directions.py
+      AST-based enforcement of cross-package import rules
+      (adapted from EviTrace tests/test_dependency_directions.py)
+  - .kiro/steering/changelog-rules.md
+      Changelog conventions
+      (adapted from EviTrace .kiro/steering/changelog-rules.md)
+
+-----------------------------------------------------------------------
+Trademarks
+-----------------------------------------------------------------------
+HL7(R) and FHIR(R) are registered trademarks of Health Level Seven
+International. This project is not affiliated with or endorsed by HL7.
+Device and vendor names are used only to describe compatibility.
