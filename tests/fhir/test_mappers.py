@@ -11,8 +11,17 @@ from uuid import UUID
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vitals_on_fhir.fhir import ScalarVitalMapper, resolve_mapper
-from vitals_on_fhir.vitals import ScalarVital
+from vitals_on_fhir.fhir import (
+    ComponentVitalMapper,
+    ScalarVitalMapper,
+    resolve_mapper,
+)
+from vitals_on_fhir.vitals import (
+    BloodPressure,
+    HeartRate,
+    OxygenSaturation,
+    ScalarVital,
+)
 
 # Feature: hr-pipeline, Property 9: Mapper resolves via the MRO
 #
@@ -244,6 +253,9 @@ def test_mapper_produces_valid_us_core_observation(
     assert observation.valueQuantity.system == "http://unitsofmeasure.org"
     assert observation.valueQuantity.code == HeartRate.ucum_unit
     assert observation.valueQuantity.code == "/min"
+    # unit display now derives from the vital's ucum_unit (was "beats/minute").
+    assert observation.valueQuantity.unit == HeartRate.ucum_unit
+    assert observation.valueQuantity.unit == "/min"
     assert float(observation.valueQuantity.value) == value
 
     # id parses as a UUID.
@@ -251,3 +263,99 @@ def test_mapper_produces_valid_us_core_observation(
 
     # Effective time round-trips to the same instant in UTC.
     assert observation.effectiveDateTime.astimezone(UTC) == effective.astimezone(UTC)
+
+
+# Feature: oxygen-saturation, FR-SPO2-5: SpO2 reuses the scalar mapper via the MRO
+def test_oxygen_saturation_resolves_to_scalar_mapper() -> None:
+    """``OxygenSaturation`` resolves to ``ScalarVitalMapper`` via the MRO registry.
+
+    No mapper code or registration is added for SpO2: as a ``ScalarVital``
+    subclass it inherits the mapper registered for ``ScalarVital``.
+
+    Validates: Requirements FR-SPO2-5, NFR-SPO2-1
+    """
+    scalar_mapper = resolve_mapper(ScalarVital)
+    resolved = resolve_mapper(OxygenSaturation)
+
+    assert isinstance(resolved, ScalarVitalMapper)
+    assert resolved is scalar_mapper
+    assert ScalarVital in OxygenSaturation.__mro__
+
+
+# Feature: oxygen-saturation, NFR-SPO2-1: existing resolutions unchanged
+def test_existing_mapper_resolutions_unchanged() -> None:
+    """``HeartRate`` and ``BloodPressure`` mapper resolution is unchanged.
+
+    ``HeartRate`` still resolves to ``ScalarVitalMapper`` and ``BloodPressure``
+    still resolves to ``ComponentVitalMapper`` after the SpO2 slice lands.
+
+    Validates: Requirements FR-SPO2-5, NFR-SPO2-1
+    """
+    assert isinstance(resolve_mapper(HeartRate), ScalarVitalMapper)
+    assert isinstance(resolve_mapper(BloodPressure), ComponentVitalMapper)
+
+
+# Feature: oxygen-saturation, FR-SPO2-5 / NFR-SPO2-3: valid US Core Pulse Oximetry
+@given(
+    value=st.floats(
+        min_value=70.0, max_value=100.0, allow_nan=False, allow_infinity=False
+    ),
+    effective=_aware_datetimes,
+    issued=_aware_datetimes,
+)
+def test_mapper_produces_valid_pulse_oximetry_observation(
+    value: float,
+    effective: datetime,
+    issued: datetime,
+) -> None:
+    """``ScalarVitalMapper`` maps ``OxygenSaturation`` to a valid US Core Observation.
+
+    For any plausible SpO2 reading, the mapper returns a ``fhir.resources``
+    Observation that constructs without a validation error and carries the
+    fields required by the US Core Pulse Oximetry profile: ``status == "final"``,
+    LOINC ``59408-5``, the ``vital-signs`` category, the US Core Pulse Oximetry
+    profile URL in ``meta.profile``, both timestamps present, and a
+    ``valueQuantity`` whose UCUM ``code`` and ``unit`` display are ``%``.
+
+    Validates: Requirements FR-SPO2-5, NFR-SPO2-3
+    """
+    reading = OxygenSaturation(
+        effective=effective,
+        device_id="dev-spo2",
+        value=value,
+    )
+
+    # Construction is the FHIR validity check: an invalid resource raises here.
+    observation = ScalarVitalMapper().to_observation(
+        reading,
+        "Patient/local-patient",
+        "Device/pulse-oximeter",
+        issued,
+    )
+
+    assert observation.get_resource_type() == "Observation"
+    assert observation.status == "final"
+
+    # LOINC 59408-5 pulse-oximetry code.
+    assert observation.code.coding[0].code == OxygenSaturation.loinc_code
+    assert observation.code.coding[0].code == "59408-5"
+
+    # Vital-signs category.
+    assert observation.category[0].coding[0].code == "vital-signs"
+
+    # US Core Pulse Oximetry profile URL in meta.profile.
+    assert observation.meta is not None
+    assert OxygenSaturation.us_core_profile in [
+        str(profile) for profile in observation.meta.profile
+    ]
+
+    # Both timestamps present and ISO 8601 parseable.
+    assert observation.effectiveDateTime is not None
+    assert observation.issued is not None
+
+    # valueQuantity: UCUM system, code and display are all the % unit; value kept.
+    assert observation.valueQuantity.system == "http://unitsofmeasure.org"
+    assert observation.valueQuantity.code == OxygenSaturation.ucum_unit
+    assert observation.valueQuantity.code == "%"
+    assert observation.valueQuantity.unit == "%"
+    assert float(observation.valueQuantity.value) == value
