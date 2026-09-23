@@ -1,0 +1,175 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Extract SFLOAT decoding into a shared module (behavior-preserving)": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374301
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182382236
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182662229
+      }
+    ],
+    "2. Generalize `PlausibleRangeValidator` to per-vital-class bounds (backward compatible)": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374359
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182665973
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182815842
+      }
+    ],
+    "3. Add the `OxygenSaturation` vital-sign type": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374455
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182819322
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182923021
+      }
+    ],
+    "4. Implement the PLX Continuous Measurement parser (pure functions + class)": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374519
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182926461
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183082542
+      }
+    ],
+    "5. Add the protocol citation in `docs/`": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374570
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183086094
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183168093
+      }
+    ],
+    "6. Use `ucum_unit` for the scalar `valueQuantity.unit` display": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374625
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183171243
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183339460
+      }
+    ],
+    "7. Add `VOF_SPO2_*` configuration": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374686
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183342809
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183424246
+      }
+    ],
+    "8. Add `PulseOximeterBleAdapter` and `MockOximeterAdapter`": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374767
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183428055
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183686765
+      }
+    ],
+    "9. Wire oxygen saturation into the CLI": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374817
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183691327
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183838266
+      }
+    ],
+    "10. Full verification, docs, and changelog": [
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790182374870
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790183841882
+      },
+      {
+        "executionId": "d1fb5485-0872-4cca-a809-754d746b7741",
+        "chatSessionId": "sess_bcdfd524-8fda-41d8-b32b-741493b2a96b",
+        "timestamp": 1790184140253
+      }
+    ]
+  }
+}

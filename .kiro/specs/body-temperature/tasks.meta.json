@@ -1,0 +1,332 @@
+{
+  "pbtResults": {
+    "1.1 Property + edge-case tests for `decode_float`": {
+      "status": "passed",
+      "lastRunTimestamp": 1790188668547
+    },
+    "4.2 Property test — parser never crashes on arbitrary bytes": {
+      "status": "passed",
+      "lastRunTimestamp": 1790188859307
+    },
+    "4.4 Property test — Fahrenheit normalization correctness": {
+      "status": "passed",
+      "lastRunTimestamp": 1790188860533
+    },
+    "8.1 Validation wiring tests": {
+      "status": "passed",
+      "lastRunTimestamp": 1790189384448
+    }
+  },
+  "executionHistory": {
+    "1.1 Property + edge-case tests for `decode_float`": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825389
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188474076
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188683335
+      }
+    ],
+    "2. Extract `decode_timestamp` into a shared `adapters` helper (behavior-preserving)": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825445
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187841763
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188463227
+      }
+    ],
+    "3.1 Metadata tests for `BodyTemperature`": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825525
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188475444
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188684326
+      }
+    ],
+    "4.1 Pure-function unit tests": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825602
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188693078
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189018244
+      }
+    ],
+    "4.2 Property test — parser never crashes on arbitrary bytes": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825669
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188694025
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189019081
+      }
+    ],
+    "4.3 Property test — well-formed build→parse round-trip": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825727
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188695425
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189019645
+      }
+    ],
+    "4.4 Property test — Fahrenheit normalization correctness": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825784
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188696360
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189020424
+      }
+    ],
+    "5. Add the protocol citation and device-compatibility row in `docs/`": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825843
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187843155
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188465573
+      }
+    ],
+    "6.1 Config unit tests": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825906
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189031131
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189218700
+      }
+    ],
+    "7.1 Mock + adapter contract/behavior tests": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187825968
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189032089
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189216666
+      }
+    ],
+    "8.1 Validation wiring tests": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187826023
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189223545
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189449634
+      }
+    ],
+    "8.2 Mapper + API tests": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187826077
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189224506
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189450446
+      }
+    ],
+    "9. Author the idea-only briefs and update the config-surface checkpoint": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187826141
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189226298
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189448239
+      }
+    ],
+    "10. Full verification, changelog, and dependency-direction check": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187826272
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189456261
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189756348
+      }
+    ],
+    "1. Add IEEE-11073 32-bit FLOAT decoding to the shared module (additive)": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187841171
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188462327
+      }
+    ],
+    "3. Add the `BodyTemperature` vital-sign type": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790187842154
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188464623
+      }
+    ],
+    "4. Implement the Temperature Measurement parser (pure functions + class)": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188476392
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188686571
+      }
+    ],
+    "6. Add `VOF_TEMP_*` configuration": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188477560
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188685845
+      }
+    ],
+    "7. Add `HealthThermometerBleAdapter` and `MockThermometerAdapter`": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790188697735
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189014958
+      }
+    ],
+    "8. Wire body temperature into the CLI": [
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189033114
+      },
+      {
+        "executionId": "c2111515-a3b8-43b1-ac85-a2d1e4c68e33",
+        "chatSessionId": "sess_9e0be50a-5824-4906-b58a-2c91ba0e4648",
+        "timestamp": 1790189216431
+      }
+    ]
+  }
+}
