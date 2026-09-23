@@ -1,11 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""BLE-specific adapter ABCs: parser interface and Heart Rate Service adapter base.
+"""BLE adapter building blocks: parser interface, reusable lifecycle, and HR adapter base.
 
-``bleak`` is NOT imported at module level. The concrete lifecycle on
-``BleHeartRateAdapter`` imports it lazily inside method bodies, guarded so a
-missing or unavailable Bluetooth stack raises a clear ``RuntimeError`` rather
-than a bare ``ImportError``. Concrete subclasses implement only ``matches`` and
-``device_info``.
+This module holds three pieces:
+
+- :class:`GattCharacteristicParser` — the ABC every payload parser implements.
+- :class:`BleConnection` — a profile-agnostic BLE scan/connect/subscribe/reconnect
+  lifecycle, parameterized by the GATT service and characteristic UUIDs, an
+  advertisement ``matches`` predicate, and a parser factory. Concrete adapters
+  reuse it *by composition* (they hold one), so the lifecycle is implemented
+  once and shared across the Heart Rate Service adapter and future profile
+  adapters (e.g. blood pressure) without a new inheritance level.
+- :class:`BleHeartRateAdapter` — the Heart Rate Service adapter base, which now
+  delegates its lifecycle to a :class:`BleConnection`. Its public surface is
+  unchanged: concrete subclasses implement only ``matches`` and ``device_info``.
+
+``bleak`` is NOT imported at module level. :class:`BleConnection` imports it
+lazily inside method bodies, guarded so a missing or unavailable Bluetooth stack
+raises a clear ``RuntimeError`` rather than a bare ``ImportError``.
 """
 
 from __future__ import annotations
@@ -60,78 +71,68 @@ class GattCharacteristicParser(abc.ABC):
         ...
 
 
-class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
-    """Abstract BLE adapter for the Bluetooth Heart Rate Service (GATT 0x180D).
+class BleConnection:
+    """Profile-agnostic BLE scan/connect/subscribe/reconnect lifecycle.
 
-    Provides a concrete connection lifecycle: BLE scanning, subscribing to
-    characteristic 0x2A37, parsing via ``HeartRateMeasurementParser``, and a
-    reconnection loop with capped exponential backoff. Concrete subclasses need
-    only implement ``matches`` (advertisement filter) and the ``device_info``
-    property.
+    A reusable unit that concrete adapters hold by composition rather than
+    inherit. It is parameterized by everything that varies between profiles: the
+    GATT service UUID to scan for, the characteristic UUID to subscribe to, the
+    advertisement ``matches`` predicate, and a factory that builds the parser for
+    decoded payloads. It manages connection state, a threadsafe notification
+    queue, capped-exponential-backoff reconnection, and clean shutdown.
 
-    ``bleak`` is imported lazily inside method bodies; it is never imported at
-    the module level here.
+    Not an ABC and not a :class:`DeviceAdapter`; adapters delegate their
+    lifecycle methods to an instance of this class. ``bleak`` is imported lazily
+    inside method bodies only.
     """
-
-    supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = ()
-    """Populated by the concrete subclass or set at class body level."""
 
     def __init__(
         self,
         *,
+        service_uuid: str,
+        characteristic_uuid: str,
+        matches: Callable[[object], bool],
+        parser_factory: Callable[[], GattCharacteristicParser],
         device_name: str | None = None,
         on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
-        now: Callable[[], datetime] | None = None,
     ) -> None:
-        """Initialize the BLE adapter lifecycle state.
+        """Create a BLE connection lifecycle.
 
         Args:
+            service_uuid: GATT service UUID to filter advertisements by during
+                the scan (e.g. the Heart Rate Service ``0x180D``).
+            characteristic_uuid: GATT characteristic UUID to subscribe to for
+                notifications (e.g. the HR Measurement characteristic ``0x2A37``).
+            matches: Predicate applied to each scanned advertisement; the first
+                advertisement it accepts (subject to ``device_name``) is used.
+            parser_factory: Zero-argument callable returning the
+                :class:`GattCharacteristicParser` used to decode notifications.
+                Called lazily on first consumption of :meth:`vitals`.
             device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
                 When set, only advertisements whose name matches are considered,
-                in addition to the subclass ``matches`` check.
+                in addition to the ``matches`` predicate.
             on_state_change: Optional async callback invoked on every connection
-                state transition. Wired by ``cli.py`` to relay state to the
-                dashboard broadcaster; the adapter itself never imports
-                ``dashboard``.
-            now: Optional clock returning a timezone-aware timestamp, forwarded
-                to the parser so the reading's ``effective`` time is injectable
-                for tests.
+                state transition, used to relay state to the dashboard.
         """
+        self._service_uuid = service_uuid
+        self._characteristic_uuid = characteristic_uuid
+        self._matches = matches
+        self._parser_factory = parser_factory
         self._device_name = device_name
         self._on_state_change = on_state_change
-        self._now = now
         self._state = ConnectionState.DISCONNECTED
         self._queue: asyncio.Queue[object] = asyncio.Queue()
         self._client: object | None = None
         self._closing = False
         self._parser: GattCharacteristicParser | None = None
 
-    # -- Abstract members implemented by concrete subclasses ----------------
-
-    @abc.abstractmethod
-    def matches(self, advertisement: object) -> bool:
-        """Return ``True`` if this adapter should handle the given advertisement.
-
-        ``advertisement`` is a ``bleak.backends.device.BLEDevice`` at runtime;
-        typed as ``object`` here to avoid a top-level ``bleak`` import.
-        """
-        ...
-
-    @property
-    @abc.abstractmethod
-    def device_info(self) -> DeviceInfo:
-        """Immutable description of the target device."""
-        ...
-
-    # -- Concrete lifecycle -------------------------------------------------
-
     @property
     def state(self) -> ConnectionState:
-        """Current connection state (managed by the base implementation)."""
+        """Current connection state."""
         return self._state
 
     async def connect(self) -> None:
-        """Scan for the device, connect, and subscribe to heart-rate notifications.
+        """Scan for the device, connect, and subscribe to notifications.
 
         Imports ``bleak`` lazily. Sets ``CONNECTING`` while scanning and
         connecting, then ``CONNECTED`` once the notification subscription is in
@@ -156,50 +157,50 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
 
         device = await self._scan_for_device(bleak)
         if device is None:
-            raise RuntimeError("no matching BLE heart-rate device found during scan")
+            raise RuntimeError("no matching BLE device found during scan")
 
         loop = asyncio.get_running_loop()
         client = bleak.BleakClient(device, disconnected_callback=self._on_disconnected)
         await client.connect()
         self._client = client
-        logger.info("connected to BLE heart-rate device")
+        logger.info("connected to BLE device")
 
         def _notification_callback(_characteristic: object, data: bytearray) -> None:
             # Runs on bleak's thread: do no async work here. Hand the raw bytes
             # back to the event loop for parsing in ``vitals()``.
             loop.call_soon_threadsafe(self._queue.put_nowait, bytes(data))
 
-        await client.start_notify(HEART_RATE_MEASUREMENT_UUID, _notification_callback)
+        await client.start_notify(self._characteristic_uuid, _notification_callback)
         await self._set_state(ConnectionState.CONNECTED)
 
     async def _scan_for_device(self, bleak: Any) -> Any:
         """Scan for advertisements and return the first one that matches.
 
-        A candidate matches when the subclass ``matches`` returns ``True`` and,
+        A candidate matches when the ``matches`` predicate returns ``True`` and,
         if a ``device_name`` filter is configured, the advertised name matches.
         """
         scanner_cls = bleak.BleakScanner
         devices = await scanner_cls.discover(
-            service_uuids=[HEART_RATE_SERVICE_UUID],
+            service_uuids=[self._service_uuid],
         )
         for device in devices:
             if self._device_name is not None:
                 name = getattr(device, "name", None)
                 if name != self._device_name:
                     continue
-            if self.matches(device):
+            if self._matches(device):
                 return device
         return None
 
     def vitals(self) -> AsyncIterator[VitalSign]:
-        """Yield ``HeartRate`` readings parsed from BLE notifications.
+        """Yield readings parsed from BLE notifications.
 
         Consumes the threadsafe queue the notification callback fills, parses
-        each payload via ``HeartRateMeasurementParser``, drops malformed
-        payloads (logged at ``DEBUG``), and yields well-formed ``HeartRate``
-        objects indefinitely until ``disconnect`` is called. The generator
-        stays alive across reconnects so downstream consumers resume
-        automatically (FR-2, FR-6).
+        each payload via the parser from ``parser_factory``, drops malformed
+        payloads (logged at ``DEBUG``), and yields well-formed ``VitalSign``
+        objects indefinitely until ``disconnect`` is called. The generator stays
+        alive across reconnects so downstream consumers resume automatically
+        (FR-2, FR-6).
         """
         return self._vitals_iterator()
 
@@ -213,35 +214,15 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
             assert isinstance(item, bytes)
             vital = parser.parse(item)
             if vital is None:
-                logger.debug("dropped malformed heart-rate payload (%d bytes)", len(item))
+                logger.debug("dropped malformed payload (%d bytes)", len(item))
                 continue
             yield vital
 
     def _ensure_parser(self) -> GattCharacteristicParser:
-        """Return the parser, constructing it lazily from ``device_info``.
-
-        The parser is imported lazily to respect the package dependency
-        direction (``adapters.ble`` must not import ``adapters.parser`` at
-        module load in a way that creates an import cycle, since ``parser``
-        imports this module).
-        """
+        """Return the parser, constructing it lazily via ``parser_factory``."""
         if self._parser is None:
-            from vitals_on_fhir.adapters.parser import HeartRateMeasurementParser
-
-            self._parser = HeartRateMeasurementParser(
-                device_id=self._parser_device_id(),
-                now=self._now,
-            )
+            self._parser = self._parser_factory()
         return self._parser
-
-    def _parser_device_id(self) -> str:
-        """Return a stable device identifier for parsed readings.
-
-        Prefers a Bluetooth address identifier when present, otherwise falls
-        back to the model name.
-        """
-        info = self.device_info
-        return info.identifiers.get("bluetooth_address", info.model)
 
     def _on_disconnected(self, _client: object) -> None:
         """``bleak`` disconnect callback: trigger a reconnection loop.
@@ -260,10 +241,9 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
     async def _reconnect_loop(self) -> None:
         """Retry ``connect`` with capped exponential backoff until it succeeds.
 
-        Sets ``RECONNECTING`` and keeps retrying while the adapter is not
-        closing. On success the state returns to ``CONNECTED`` and downstream
-        consumption resumes without the ``vitals()`` generator restarting
-        (NFR-2, FR-6).
+        Sets ``RECONNECTING`` and keeps retrying while not closing. On success
+        the state returns to ``CONNECTED`` and downstream consumption resumes
+        without the ``vitals()`` generator restarting (NFR-2, FR-6).
         """
         if self._closing:
             return
@@ -279,7 +259,7 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
                 backoff = min(backoff * _BACKOFF_FACTOR, _BACKOFF_MAX)
                 continue
             else:
-                logger.info("reconnected to BLE heart-rate device")
+                logger.info("reconnected to BLE device")
                 return
 
     async def disconnect(self) -> None:
@@ -294,7 +274,7 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
         client = self._client
         if client is not None:
             try:
-                await client.stop_notify(HEART_RATE_MEASUREMENT_UUID)  # type: ignore[attr-defined]
+                await client.stop_notify(self._characteristic_uuid)  # type: ignore[attr-defined]
             except Exception as exc:  # pragma: no cover - hardware path
                 logger.debug("error stopping notifications: %s", exc)
             try:
@@ -304,13 +284,127 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
             self._client = None
         self._queue.put_nowait(_DISCONNECT_SENTINEL)
         await self._set_state(ConnectionState.DISCONNECTED)
-        logger.info("disconnected from BLE heart-rate device")
+        logger.info("disconnected from BLE device")
 
     async def _set_state(self, state: ConnectionState) -> None:
         """Update the connection state and invoke the injected state callback."""
         self._state = state
         if self._on_state_change is not None:
             await self._on_state_change(state)
+
+
+class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
+    """Abstract BLE adapter for the Bluetooth Heart Rate Service (GATT 0x180D).
+
+    Provides a concrete connection lifecycle — BLE scanning, subscribing to
+    characteristic 0x2A37, parsing via ``HeartRateMeasurementParser``, and a
+    reconnection loop with capped exponential backoff — by delegating to a
+    composed :class:`BleConnection`. Concrete subclasses need only implement
+    ``matches`` (advertisement filter) and the ``device_info`` property.
+
+    ``bleak`` is imported lazily inside :class:`BleConnection`; it is never
+    imported at the module level here.
+    """
+
+    supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = ()
+    """Populated by the concrete subclass or set at class body level."""
+
+    def __init__(
+        self,
+        *,
+        device_name: str | None = None,
+        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        """Initialize the BLE adapter, composing a Heart Rate Service lifecycle.
+
+        Args:
+            device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
+                When set, only advertisements whose name matches are considered,
+                in addition to the subclass ``matches`` check.
+            on_state_change: Optional async callback invoked on every connection
+                state transition. Wired by ``cli.py`` to relay state to the
+                dashboard broadcaster; the adapter itself never imports
+                ``dashboard``.
+            now: Optional clock returning a timezone-aware timestamp, forwarded
+                to the parser so the reading's ``effective`` time is injectable
+                for tests.
+        """
+        self._now = now
+        self._connection = BleConnection(
+            service_uuid=HEART_RATE_SERVICE_UUID,
+            characteristic_uuid=HEART_RATE_MEASUREMENT_UUID,
+            matches=self.matches,
+            parser_factory=self._build_parser,
+            device_name=device_name,
+            on_state_change=on_state_change,
+        )
+
+    # -- Abstract members implemented by concrete subclasses ----------------
+
+    @abc.abstractmethod
+    def matches(self, advertisement: object) -> bool:
+        """Return ``True`` if this adapter should handle the given advertisement.
+
+        ``advertisement`` is a ``bleak.backends.device.BLEDevice`` at runtime;
+        typed as ``object`` here to avoid a top-level ``bleak`` import.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def device_info(self) -> DeviceInfo:
+        """Immutable description of the target device."""
+        ...
+
+    # -- Concrete lifecycle (delegated to the composed BleConnection) -------
+
+    @property
+    def state(self) -> ConnectionState:
+        """Current connection state (managed by the composed lifecycle)."""
+        return self._connection.state
+
+    async def connect(self) -> None:
+        """Scan for the device, connect, and subscribe to heart-rate notifications.
+
+        Delegates to the composed :class:`BleConnection` (FR-1, FR-2).
+
+        Raises:
+            RuntimeError: if ``bleak`` (or the underlying Bluetooth stack) is
+                unavailable, or if no matching device is found.
+        """
+        await self._connection.connect()
+
+    def vitals(self) -> AsyncIterator[VitalSign]:
+        """Yield ``HeartRate`` readings parsed from BLE notifications (FR-2, FR-6)."""
+        return self._connection.vitals()
+
+    async def disconnect(self) -> None:
+        """Stop notifications, disconnect, and unblock ``vitals()`` (FR-1, FR-6)."""
+        await self._connection.disconnect()
+
+    def _build_parser(self) -> GattCharacteristicParser:
+        """Construct the Heart Rate Measurement parser for the composed lifecycle.
+
+        Imported lazily to respect the package dependency direction
+        (``adapters.parser`` imports this module, so importing it at module load
+        here would create an import cycle).
+        """
+        from vitals_on_fhir.adapters.parser import HeartRateMeasurementParser
+
+        return HeartRateMeasurementParser(
+            device_id=self._parser_device_id(),
+            now=self._now,
+        )
+
+    def _parser_device_id(self) -> str:
+        """Return a stable device identifier for parsed readings.
+
+        Prefers a Bluetooth address identifier when present, otherwise falls
+        back to the model name.
+        """
+        info = self.device_info
+        return info.identifiers.get("bluetooth_address", info.model)
 
 
 def _import_bleak() -> object:
