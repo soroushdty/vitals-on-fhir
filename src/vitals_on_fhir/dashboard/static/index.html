@@ -1,0 +1,79 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vitals-on-fhir — live heart rate</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>vitals-on-fhir</h1>
+    <p class="subtitle">Live heart-rate monitor</p>
+  </header>
+
+  <main>
+    <!-- Token entry: the token is used for the WebSocket connection. -->
+    <section class="card" aria-labelledby="connect-heading">
+      <h2 id="connect-heading">Connect</h2>
+      <form id="connect-form" autocomplete="off">
+        <label for="token-input">Access token</label>
+        <input
+          type="password"
+          id="token-input"
+          name="token"
+          placeholder="Enter your access token"
+          autocomplete="off"
+          required
+        />
+        <button type="submit" id="connect-button">Connect</button>
+      </form>
+    </section>
+
+    <!-- Live readings. Values are cleared while disconnected (FR-6). -->
+    <section class="card" aria-labelledby="reading-heading">
+      <h2 id="reading-heading">Latest reading</h2>
+
+      <div class="reading">
+        <span class="reading-value" id="hr-value" aria-live="polite">—</span>
+        <span class="reading-unit">beats per minute</span>
+      </div>
+
+      <p class="timestamp">
+        Measured at:
+        <span id="hr-timestamp" aria-live="polite">No reading yet</span>
+      </p>
+
+      <p class="status-line">
+        Connection status:
+        <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
+      </p>
+    </section>
+
+    <!-- Security and scope disclaimers (FR-5, security-privacy.md). -->
+    <section class="card notice" aria-labelledby="notice-heading">
+      <h2 id="notice-heading">Before you use this</h2>
+
+      <p class="warning">
+        <strong>Open Bluetooth broadcast.</strong>
+        The standard Bluetooth Heart Rate Service is an unauthenticated channel.
+        When heart-rate broadcast is enabled on the device, any nearby Bluetooth
+        LE receiver can read the heart-rate stream. This is part of the Bluetooth
+        standard and cannot be changed by this software. Turn off heart-rate
+        broadcast on the device when you are not actively monitoring.
+      </p>
+
+      <p class="warning">
+        <strong>Research and educational use only.</strong>
+        vitals-on-fhir is a local proof-of-concept for healthcare interoperability.
+        It is not a medical device, is not HIPAA-compliant, and must not be used
+        with real patient data or for diagnosis, treatment, or any clinical
+        decision-making.
+      </p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
