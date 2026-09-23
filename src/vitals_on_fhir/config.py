@@ -19,7 +19,12 @@ class Settings(BaseSettings):
     Never log the ``api_token`` field at any level.
     """
 
-    model_config = SettingsConfigDict(env_prefix="VOF_", extra="forbid")
+    model_config = SettingsConfigDict(
+        env_prefix="VOF_",
+        extra="forbid",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
     # Required — no default; must be supplied via VOF_API_TOKEN
     api_token: str

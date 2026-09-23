@@ -5,6 +5,15 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-09] — Load configuration from `.env`
+
+Fixed startup failure where `Settings` ignored the `.env` file, causing a required-field
+`ValidationError` for `api_token` even after following the documented `cp .env.example .env`
+setup flow.
+
+- Changed: `config.py` — `Settings.model_config` now sets `env_file=".env"` (UTF-8), so
+  `VOF_*` values in `.env` are loaded. Real environment variables still take precedence.
+
 ## [2026-09] — Heart rate pipeline MVP (spec/hr-pipeline)
 
 Fills in the business logic behind the scaffold stubs so the heart-rate MVP runs end to end:
