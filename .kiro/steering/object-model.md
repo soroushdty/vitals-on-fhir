@@ -26,7 +26,7 @@ VitalSign (ABC, frozen dataclass)
 ```python
 @dataclass(frozen=True, kw_only=True)
 class VitalSign(ABC):
-    effective: datetime   # timezone-aware; when the measurement was taken
+    effective: datetime  # timezone-aware; when the measurement was taken
     device_id: str
 
     # Required class metadata (enforced in __init_subclass__ for concrete subclasses)
@@ -57,7 +57,9 @@ For multi-component readings (e.g. blood pressure: systolic + diastolic). Define
 class HeartRate(ScalarVital):
     loinc_code: ClassVar[str] = "8867-4"
     ucum_unit: ClassVar[str] = "/min"
-    us_core_profile: ClassVar[str] = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-heart-rate"
+    us_core_profile: ClassVar[str] = (
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-heart-rate"
+    )
     plausible_range: ClassVar[tuple[float, float]] = (20.0, 250.0)
 
     sensor_contact: bool | None = None  # from the BLE flags byte
