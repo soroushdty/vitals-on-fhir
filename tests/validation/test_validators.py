@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -13,8 +15,25 @@ from vitals_on_fhir.validation.builtin.validators import (
     PlausibleRangeValidator,
     SensorContactValidator,
 )
-from vitals_on_fhir.vitals.base import VitalSign
+from vitals_on_fhir.vitals.base import ScalarVital, VitalSign
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
+
+
+@dataclass(frozen=True, kw_only=True)
+class _StubScalarVital(ScalarVital):
+    """Test-only scalar vital standing in for a second scalar type (e.g. SpO2).
+
+    Used to verify per-vital-class bound resolution without depending on
+    ``OxygenSaturation`` (added in a later task). Its ``plausible_range`` is
+    deliberately distinct from ``HeartRate``'s so cross-application is visible.
+    """
+
+    loinc_code: ClassVar[str] = "59408-5"
+    ucum_unit: ClassVar[str] = "%"
+    us_core_profile: ClassVar[str] = (
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-pulse-oximetry"
+    )
+    plausible_range: ClassVar[tuple[float, float]] = (70.0, 100.0)
 
 
 class _StubValidator(Validator):
@@ -209,3 +228,111 @@ def test_plausible_range_matches_in_range_predicate(
     default_low, default_high = HeartRate.plausible_range
     expected_default = default_low <= value <= default_high
     assert default.check(reading).accepted is expected_default
+
+
+def _hr(value: float) -> HeartRate:
+    """Build a minimal ``HeartRate`` reading with the given value."""
+    return HeartRate(effective=datetime(2026, 1, 1, tzinfo=UTC), device_id="dev-1", value=value)
+
+
+def _spo2(value: float) -> _StubScalarVital:
+    """Build a minimal second-scalar reading with the given value."""
+    return _StubScalarVital(
+        effective=datetime(2026, 1, 1, tzinfo=UTC), device_id="dev-1", value=value
+    )
+
+
+# Task 2 (oxygen-saturation): per-vital-class bounds — the SpO2 side of the guard.
+def test_override_applies_to_target_class_only_spo2() -> None:
+    """An SpO2 override applies to SpO2 readings and not to heart rate.
+
+    A value inside the SpO2 override but outside HR bounds must be accepted for
+    SpO2, while HR continues to use its own bounds (no cross-application).
+
+    Validates: Requirements FR-SPO2-6
+    """
+    validator = PlausibleRangeValidator(overrides={_StubScalarVital: (90.0, 100.0)})
+
+    # 95 is inside the SpO2 override → accepted for SpO2.
+    assert validator.check(_spo2(95.0)).accepted is True
+    # 85 is below the SpO2 override → rejected for SpO2.
+    assert validator.check(_spo2(85.0)).accepted is False
+
+    # HR is untouched by the SpO2 override: it falls back to HeartRate.plausible_range
+    # (20–250). 95 bpm is in range → accepted; the 90–100 override must not apply to HR.
+    assert validator.check(_hr(95.0)).accepted is True
+    # 15 bpm is below HR's own range → rejected (not judged against 90–100 either).
+    assert validator.check(_hr(15.0)).accepted is False
+
+
+# Task 2 (oxygen-saturation): per-vital-class bounds — the HR side of the guard.
+def test_override_applies_to_target_class_only_hr() -> None:
+    """An HR override applies to heart rate and not to SpO2 (cross-application guard).
+
+    A value inside the HR override but outside SpO2 bounds must be accepted for
+    HR, while SpO2 continues to use its own class ``plausible_range``.
+
+    Validates: Requirements FR-SPO2-6
+    """
+    validator = PlausibleRangeValidator(overrides={HeartRate: (40.0, 60.0)})
+
+    # 50 is inside the HR override → accepted for HR.
+    assert validator.check(_hr(50.0)).accepted is True
+    # 90 is above the HR override → rejected for HR.
+    assert validator.check(_hr(90.0)).accepted is False
+
+    # SpO2 is untouched by the HR override: falls back to its (70, 100) range.
+    # 90% is in the SpO2 range → accepted; the 40–60 HR override must not apply.
+    assert validator.check(_spo2(90.0)).accepted is True
+    # 50% is below SpO2's own range → rejected.
+    assert validator.check(_spo2(50.0)).accepted is False
+
+
+def test_no_override_falls_back_to_plausible_range() -> None:
+    """With no override, each class is judged against its own ``plausible_range``.
+
+    Validates: Requirements FR-SPO2-6
+    """
+    validator = PlausibleRangeValidator()
+
+    # HeartRate.plausible_range is (20, 250).
+    assert validator.check(_hr(72.0)).accepted is True
+    assert validator.check(_hr(300.0)).accepted is False
+
+    # _StubScalarVital.plausible_range is (70, 100).
+    assert validator.check(_spo2(98.0)).accepted is True
+    assert validator.check(_spo2(50.0)).accepted is False
+
+
+def test_legacy_positional_construction_maps_to_heart_rate() -> None:
+    """The legacy ``(hr_min, hr_max)`` form still bounds heart rate unchanged.
+
+    It must map to a HeartRate override and leave other scalar vitals on their
+    own ``plausible_range``.
+
+    Validates: Requirements NFR-SPO2-1
+    """
+    validator = PlausibleRangeValidator(40.0, 60.0)
+
+    # HR judged against the legacy pair.
+    assert validator.check(_hr(50.0)).accepted is True
+    assert validator.check(_hr(90.0)).accepted is False
+
+    # The legacy pair must not cross-apply to another scalar vital.
+    assert validator.check(_spo2(98.0)).accepted is True
+
+
+def test_rejection_reason_names_bounds_not_value() -> None:
+    """The rejection reason names only the bounds, never the measurement value.
+
+    Validates: Requirements NFR-SPO2-5
+    """
+    validator = PlausibleRangeValidator(overrides={HeartRate: (40.0, 60.0)})
+
+    result = validator.check(_hr(200.0))
+
+    assert result.accepted is False
+    assert result.reason is not None
+    assert "40.0" in result.reason
+    assert "60.0" in result.reason
+    assert "200" not in result.reason
