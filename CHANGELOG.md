@@ -5,7 +5,7 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
-## [2026-09] — Body temperature (spec/body-temperature)
+## [2026-09-23] — Body temperature (spec/body-temperature)
 
 Implements the third phase-2 slice: acquiring body temperature over the standard
 Bluetooth Health Thermometer Service (HTS) Temperature Measurement characteristic
@@ -69,7 +69,7 @@ FR-TEMP-1..FR-TEMP-9 and NFR-TEMP-1..NFR-TEMP-6.
   "awkward") plus a structural-driver note that per-vital validation modes push
   toward `config.yaml` independently of list length (FR-TEMP-9)
 
-## [2026-09] — Oxygen saturation (spec/oxygen-saturation)
+## [2026-09-23] — Oxygen saturation (spec/oxygen-saturation)
 
 Implements the second phase-2 slice: acquiring peripheral oxygen saturation
 (SpO2) over the standard Bluetooth Pulse Oximeter (PLX) Continuous Measurement
@@ -125,7 +125,7 @@ NFR-SPO2-1..NFR-SPO2-6.
 - Changed: `docs/brief-config-file.md` — added the post-SpO2 surface-size
   checkpoint (`VOF_*` count now 15; flat list judged not yet "awkward")
 
-## [2026-09] — Blood pressure (spec/home-health-devices)
+## [2026-09-23] — Blood pressure (spec/home-health-devices)
 
 Implements the first phase-2 slice: acquiring blood pressure over the standard
 Bluetooth Blood Pressure Service and representing it as a US Core Blood Pressure
@@ -167,7 +167,7 @@ NFR-HH-1..NFR-HH-6.
   specifications; BP-cuff row added to `docs/device-compatibility.md` (FR-HH-5,
   NFR-HH-4)
 
-## [2026-09] — Open roadmap phase 2 (home health devices)
+## [2026-09-23] — Open roadmap phase 2 (home health devices)
 
 Records the deliberate scope decision to promote roadmap phase 2 — home health
 devices via standard Bluetooth health profiles — from context-only to active
@@ -188,7 +188,7 @@ scope decision, not an automatic consequence of finishing the MVP.
 - Phases 3–5 (phone aggregators, persistence/outbound/SMART on FHIR, separately
   licensed adapters) remain closed and context-only.
 
-## [2026-09] — Load configuration from `.env`
+## [2026-09-23] — Load configuration from `.env`
 
 Fixed startup failure where `Settings` ignored the `.env` file, causing a required-field
 `ValidationError` for `api_token` even after following the documented `cp .env.example .env`
@@ -199,7 +199,7 @@ setup flow.
 - Added: `tests/test_config.py` — regression coverage for `.env` loading, field defaults,
   process-env precedence, and the required-token failure path.
 
-## [2026-09] — Heart rate pipeline MVP (spec/hr-pipeline)
+## [2026-09-23] — Heart rate pipeline MVP (spec/hr-pipeline)
 
 Fills in the business logic behind the scaffold stubs so the heart-rate MVP runs end to end:
 BLE and mock acquisition, payload parsing, validation, FHIR mapping, in-memory storage, a
@@ -237,7 +237,7 @@ and NFR-1..NFR-6.
 - Added: `docs/protocol-heart-rate-measurement.md` citing the Bluetooth SIG Heart Rate Service /
   Heart Rate Measurement (`0x2A37`) specification used for the parser (FR-3a)
 
-## [2026-09] — Repository scaffold (spec/repo-scaffold)
+## [2026-09-21] — Repository scaffold (spec/repo-scaffold)
 
 Creates the complete skeleton of the vitals-on-fhir repository: all packages,
 module stubs, configuration, tooling, and top-level files. No business logic
@@ -252,7 +252,7 @@ is implemented; all modules contain only correct signatures and `...` bodies.
 - Added: `.github/workflows/ci.yml` — four-step CI pipeline
 - Ported `test_dependency_directions.py` pattern from EviTrace (GPL-3.0); recorded in NOTICE.
 
-## [2026-09] — Steering layer
+## [2026-09-21] — Steering layer
 
 Added eight steering documents under `.kiro/steering/` establishing the authoritative rules
 for all future spec-driven work: product scope, technical stack, project structure, object model,
