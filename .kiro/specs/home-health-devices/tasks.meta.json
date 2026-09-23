@@ -1,0 +1,192 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Define the `ComponentVital` concrete shape and `ComponentSpec`": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179018594
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179026491
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179102631
+      }
+    ],
+    "2. Add the `BloodPressure` vital-sign type": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179018779
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179105577
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179492767
+      }
+    ],
+    "3. Extract the BLE lifecycle into a composed `BleConnection` (behavior-preserving)": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179018913
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179499185
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179600548
+      }
+    ],
+    "4. Implement the Blood Pressure Measurement parser (pure functions + class)": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019010
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179604195
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180067805
+      }
+    ],
+    "5. Add the protocol citation in `docs/`": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019115
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180071069
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180140267
+      }
+    ],
+    "6. Implement `ComponentVitalMapper` and register it": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019180
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180143488
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180350819
+      }
+    ],
+    "7. Add `ComponentRangeValidator` and generalize `DuplicateValidator`": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019246
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180354348
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180434165
+      }
+    ],
+    "8. Add `VOF_BP_*` configuration": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019313
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180439966
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180508664
+      }
+    ],
+    "9. Add `BloodPressureBleAdapter` and `MockBloodPressureAdapter`": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019394
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180512002
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180714969
+      }
+    ],
+    "10. Wire blood pressure into the CLI": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019492
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180718754
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180880206
+      }
+    ],
+    "11. Full verification and changelog": [
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790179019559
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790180883890
+      },
+      {
+        "executionId": "76e6205c-36ed-442d-9cb8-9a343e4429e8",
+        "chatSessionId": "sess_92ae7163-7c52-4858-ab36-754b35389a9d",
+        "timestamp": 1790181027036
+      }
+    ]
+  }
+}

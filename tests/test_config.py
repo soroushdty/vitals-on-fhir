@@ -85,3 +85,116 @@ def test_missing_token_still_raises(
 
     with pytest.raises(ValueError):
         Settings()  # type: ignore[call-arg]
+
+
+def test_bp_bounds_default_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``VOF_BP_*`` bounds fall back to their declared defaults when unset."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.bp_systolic_min == 50.0
+    assert settings.bp_systolic_max == 250.0
+    assert settings.bp_diastolic_min == 30.0
+    assert settings.bp_diastolic_max == 150.0
+
+
+def test_bp_bounds_load_from_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_BP_*`` values in ``.env`` override the defaults."""
+    _write_env(
+        tmp_path,
+        "VOF_API_TOKEN=test-token-do-not-use\n"
+        "VOF_BP_SYSTOLIC_MIN=80\n"
+        "VOF_BP_SYSTOLIC_MAX=200\n"
+        "VOF_BP_DIASTOLIC_MIN=40\n"
+        "VOF_BP_DIASTOLIC_MAX=130\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.bp_systolic_min == 80.0
+    assert settings.bp_systolic_max == 200.0
+    assert settings.bp_diastolic_min == 40.0
+    assert settings.bp_diastolic_max == 130.0
+
+
+def test_spo2_bounds_default_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``VOF_SPO2_*`` bounds fall back to their declared defaults when unset."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.spo2_min == 70.0
+    assert settings.spo2_max == 100.0
+
+
+def test_spo2_bounds_load_from_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_SPO2_*`` values in ``.env`` override the defaults."""
+    _write_env(
+        tmp_path,
+        "VOF_API_TOKEN=test-token-do-not-use\n"
+        "VOF_SPO2_MIN=85\n"
+        "VOF_SPO2_MAX=99\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.spo2_min == 85.0
+    assert settings.spo2_max == 99.0
+
+
+def test_temp_bounds_default_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``VOF_TEMP_*`` bounds fall back to their declared defaults when unset."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.temp_min == 10.0
+    assert settings.temp_max == 47.0
+
+
+def test_temp_bounds_load_from_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_TEMP_*`` values in ``.env`` override the defaults."""
+    _write_env(
+        tmp_path,
+        "VOF_API_TOKEN=test-token-do-not-use\n"
+        "VOF_TEMP_MIN=15\n"
+        "VOF_TEMP_MAX=45\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.temp_min == 15.0
+    assert settings.temp_max == 45.0
+
+
+def test_unknown_vof_variable_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown ``VOF_*`` variable is rejected (``extra = "forbid"``)."""
+    _write_env(
+        tmp_path,
+        "VOF_API_TOKEN=test-token-do-not-use\nVOF_BP_UNKNOWN=1\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError):
+        Settings()  # type: ignore[call-arg]

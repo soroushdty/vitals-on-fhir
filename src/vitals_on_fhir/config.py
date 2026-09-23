@@ -37,9 +37,23 @@ class Settings(BaseSettings):
     adapter: str = "mock"
     device_name: str | None = None
 
-    # Validation bounds
+    # Validation bounds — heart rate (bpm)
     hr_min: float = 20.0
     hr_max: float = 250.0
+
+    # Validation bounds — blood pressure components (mmHg)
+    bp_systolic_min: float = 50.0
+    bp_systolic_max: float = 250.0
+    bp_diastolic_min: float = 30.0
+    bp_diastolic_max: float = 150.0
+
+    # Validation bounds — oxygen saturation (%)
+    spo2_min: float = 70.0
+    spo2_max: float = 100.0
+
+    # Validation bounds — body temperature (Cel); physical-plausibility, not clinical
+    temp_min: float = 10.0
+    temp_max: float = 47.0
 
     # Storage
     patient_id: str = "local-patient"

@@ -28,7 +28,7 @@ Skip entries for:
 ## Entry format
 
 ```markdown
-## [YYYY-MM] — Short title (spec/<name> if applicable)
+## [YYYY-MM-DD] — Short title (spec/<name> if applicable)
 
 One or two sentences summarizing what changed and why.
 
@@ -38,7 +38,7 @@ One or two sentences summarizing what changed and why.
 ```
 
 Rules:
-- Date is `YYYY-MM` (year and month only, no day).
+- Date is `YYYY-MM-DD` (day granularity; no time of day). Git history is the authoritative sub-day timeline — the changelog date is a human-readable marker and should be taken from the entry's merge/commit date, not the wall clock.
 - Title is short (≤ 60 characters). If the entry corresponds to a completed spec, append `(spec/<spec-name>)`.
 - The prose sentence(s) describe the change at the level of "what and why", not "how".
 - Bullets are specific: name the class, variable, or endpoint that changed. Avoid generic bullets like "updated code".
@@ -48,7 +48,7 @@ Rules:
 ## Example entries
 
 ```markdown
-## [2026-09] — Steering layer (spec/steering)
+## [2026-09-21] — Steering layer (spec/steering)
 
 Added eight steering documents under `.kiro/steering/` covering product scope, architecture,
 FHIR conventions, security, testing strategy, and changelog rules.
@@ -57,7 +57,7 @@ FHIR conventions, security, testing strategy, and changelog rules.
 - Added: `fhir-conventions.md`, `security-privacy.md`, `testing.md`, `changelog-rules.md`
 - Ported AST dependency-direction test pattern from EviTrace (GPL-3.0); recorded in NOTICE.
 
-## [2026-10] — Heart rate pipeline MVP (spec/hr-pipeline)
+## [2026-09-23] — Heart rate pipeline MVP (spec/hr-pipeline)
 
 Implements FR-1 through FR-10: BLE acquisition, validation, FHIR mapping, in-memory store,
 read-only FHIR API, and live WebSocket dashboard.

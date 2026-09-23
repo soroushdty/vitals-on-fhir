@@ -28,7 +28,7 @@ Each accepted heart-rate measurement becomes an Observation conforming to the [U
   "issued": "2026-09-21T18:04:12.402Z",
   "valueQuantity": {
     "value": 72,
-    "unit": "beats/minute",
+    "unit": "/min",
     "system": "http://unitsofmeasure.org",
     "code": "/min"
   }

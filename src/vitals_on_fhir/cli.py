@@ -12,9 +12,10 @@ Responsibilities (design §11):
    logged — it may carry ``VOF_API_TOKEN`` (NFR-5, ``security-privacy.md``).
 2. Parse ``--adapter`` (defaulting to the configured value) and resolve it to a
    concrete :class:`~vitals_on_fhir.adapters.DeviceAdapter`: the short names
-   ``mock`` and ``miband10`` map to the built-in adapters, and any other value
-   is treated as a fully qualified ``package.module.ClassName`` imported via
-   :mod:`importlib` (FR-13).
+   ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``, ``miband10``, ``bp``,
+   ``spo2``, and ``temp`` map
+   to the built-in adapters, and any other value is treated as a fully
+   qualified ``package.module.ClassName`` imported via :mod:`importlib` (FR-13).
 3. Build the startup ``Patient`` and ``Device`` resources and derive their
    ``Patient/<id>`` / ``Device/<id>`` reference strings.
 4. Assemble the :class:`~vitals_on_fhir.validation.ValidatorChain` from the
@@ -42,7 +43,18 @@ from typing import cast
 import uvicorn
 
 from vitals_on_fhir import dashboard as _dashboard
-from vitals_on_fhir.adapters import ConnectionState, DeviceAdapter, MiBand10Adapter, MockAdapter
+from vitals_on_fhir.adapters import (
+    BloodPressureBleAdapter,
+    ConnectionState,
+    DeviceAdapter,
+    HealthThermometerBleAdapter,
+    MiBand10Adapter,
+    MockAdapter,
+    MockBloodPressureAdapter,
+    MockOximeterAdapter,
+    MockThermometerAdapter,
+    PulseOximeterBleAdapter,
+)
 from vitals_on_fhir.api import StaticTokenAuthenticator, create_app
 from vitals_on_fhir.api.app import BroadcasterLike
 from vitals_on_fhir.config import Settings
@@ -51,10 +63,17 @@ from vitals_on_fhir.fhir import ScalarVitalMapper, build_device, build_patient
 from vitals_on_fhir.pipeline import ObservationSink, Orchestrator
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.validation import (
+    ComponentRangeValidator,
     DuplicateValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
     ValidatorChain,
+)
+from vitals_on_fhir.vitals import (
+    BloodPressure,
+    BodyTemperature,
+    HeartRate,
+    OxygenSaturation,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,10 +87,12 @@ _STATIC_DIR = Path(_dashboard.__file__).parent / "static"
 def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
 
-    The short names ``mock`` and ``miband10`` map to the shipped built-in
-    adapters.  Any other value is treated as a fully qualified
-    ``package.module.ClassName`` and imported dynamically, so third-party
-    adapters are selectable without modifying the repository (FR-13).
+    The short names ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``,
+    ``miband10``, ``bp``, ``spo2``, and ``temp`` map to the shipped built-in
+    adapters.  Any other value is
+    treated as a fully qualified ``package.module.ClassName`` and imported
+    dynamically, so third-party adapters are selectable without modifying the
+    repository (FR-13).
 
     Args:
         adapter_spec: Either a short name (``mock``/``miband10``) or a fully
@@ -89,13 +110,26 @@ def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
     """
     if adapter_spec == "mock":
         return MockAdapter()
+    if adapter_spec == "mock-bp":
+        return MockBloodPressureAdapter()
     if adapter_spec == "miband10":
         return MiBand10Adapter(device_name=settings.device_name)
+    if adapter_spec == "bp":
+        return BloodPressureBleAdapter(device_name=settings.device_name)
+    if adapter_spec == "spo2":
+        return PulseOximeterBleAdapter(device_name=settings.device_name)
+    if adapter_spec == "mock-spo2":
+        return MockOximeterAdapter()
+    if adapter_spec == "temp":
+        return HealthThermometerBleAdapter(device_name=settings.device_name)
+    if adapter_spec == "mock-temp":
+        return MockThermometerAdapter()
 
     if "." not in adapter_spec:
         raise ValueError(
-            f"Unknown adapter '{adapter_spec}'. Use 'mock', 'miband10', or a "
-            "fully qualified 'package.module.ClassName'."
+            f"Unknown adapter '{adapter_spec}'. Use 'mock', 'mock-bp', 'mock-spo2', "
+            "'mock-temp', 'miband10', 'bp', 'spo2', 'temp', or a fully qualified "
+            "'package.module.ClassName'."
         )
 
     module_path, _, class_name = adapter_spec.rpartition(".")
@@ -141,10 +175,20 @@ def _build_orchestrator(
     Returns:
         A wired :class:`~vitals_on_fhir.pipeline.Orchestrator`.
     """
+    bp_overrides: dict[tuple[type, str], tuple[float, float]] = {
+        (BloodPressure, "systolic"): (settings.bp_systolic_min, settings.bp_systolic_max),
+        (BloodPressure, "diastolic"): (settings.bp_diastolic_min, settings.bp_diastolic_max),
+    }
+    scalar_overrides: dict[type, tuple[float, float]] = {
+        HeartRate: (settings.hr_min, settings.hr_max),
+        OxygenSaturation: (settings.spo2_min, settings.spo2_max),
+        BodyTemperature: (settings.temp_min, settings.temp_max),
+    }
     chain = ValidatorChain(
         [
-            PlausibleRangeValidator(settings.hr_min, settings.hr_max),
+            PlausibleRangeValidator(overrides=scalar_overrides),
             SensorContactValidator(),
+            ComponentRangeValidator(bp_overrides),
             DuplicateValidator(),
         ]
     )
@@ -242,7 +286,8 @@ def main() -> None:
         "--adapter",
         default=settings.adapter,
         help=(
-            "Device adapter: 'mock', 'miband10', or a fully qualified "
+            "Device adapter: 'mock', 'mock-bp', 'mock-spo2', 'mock-temp', "
+            "'miband10', 'bp', 'spo2', 'temp', or a fully qualified "
             "'package.module.ClassName'."
         ),
     )

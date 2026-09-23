@@ -73,24 +73,35 @@ Remote access is a roadmap item. Do not imply it is supported in any documentati
 - Local, read-only FHIR REST API with token authentication
 - Live web dashboard via WebSocket
 
+### Out of MVP scope (delivered in later phases)
+
+These were excluded from the MVP but are planned roadmap work, added by opening the relevant
+phase. They must not be built until their phase is opened.
+
+- Vital signs other than heart rate — **phase 2, now active** (BP, SpO2, temperature, weight). The
+  MVP kept the class hierarchy ready for them without adding their logic; phase 2 adds it.
+- Multiple simultaneous devices
+- Historical on-device data retrieval
+- Persistence beyond in-memory storage — phase 4
+- Writing to external EHRs or FHIR servers — phase 4
+- Remote or cloud deployment — later roadmap work
+
 ### Permanently out of scope
 
-- Vital signs other than heart rate (class hierarchy must be ready for them; do not add logic for them in the MVP)
-- Multiple simultaneous devices
 - Patient management or clinical decision support
-- Writing to external EHRs or FHIR servers
-- Remote or cloud deployment
-- Historical on-device data retrieval
-- Proprietary or reverse-engineered device protocols
-- Persistence beyond in-memory storage
+- Proprietary or reverse-engineered device protocols, and any circumvention of device security
 
-## Roadmap (context only — do not plan work for these)
+## Roadmap
 
-1. Heart rate from wearables via standard BLE Heart Rate Service — **MVP**
-2. Home health devices via standard Bluetooth health profiles (BP, SpO2, temperature, weight)
-3. Phone health aggregators (Android Health Connect, Apple HealthKit)
-4. Persistence and outbound integration: durable stores, outbound FHIR sinks, SMART on FHIR auth, adapter entry-point discovery
-5. Additional concrete adapters as separately licensed packages
+Phases are opened deliberately, one at a time, via an accepted decision record — not
+automatically when the previous phase finishes. Closed phases are context only: do not plan
+work for them until they are opened.
+
+1. Heart rate from wearables via standard BLE Heart Rate Service — **Delivered (MVP)**
+2. Home health devices via standard Bluetooth health profiles (BP, SpO2, temperature, weight) — **Active** (opened by `docs/adr-0001-open-phase-2-home-health-devices.md`; see `.kiro/specs/home-health-devices/`)
+3. Phone health aggregators (Android Health Connect, Apple HealthKit) — *Closed*
+4. Persistence and outbound integration: durable stores, outbound FHIR sinks, SMART on FHIR auth, adapter entry-point discovery — *Closed*
+5. Additional concrete adapters as separately licensed packages — *Closed*
 
 The object model must accommodate all roadmap items without breaking changes. See `object-model.md` for specifics.
 
