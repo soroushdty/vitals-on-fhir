@@ -13,6 +13,8 @@ setup flow.
 
 - Changed: `config.py` — `Settings.model_config` now sets `env_file=".env"` (UTF-8), so
   `VOF_*` values in `.env` are loaded. Real environment variables still take precedence.
+- Added: `tests/test_config.py` — regression coverage for `.env` loading, field defaults,
+  process-env precedence, and the required-token failure path.
 
 ## [2026-09] — Heart rate pipeline MVP (spec/hr-pipeline)
 
