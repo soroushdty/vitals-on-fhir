@@ -73,9 +73,10 @@ class DeviceInfo:
     manufacturer: str
     model: str
     identifiers: dict[str, str]  # e.g. {"bluetooth_address": "AA:BB:CC:DD:EE:FF"}
+    simulated: bool = False      # True for the mock adapters
 ```
 
-Used by adapters to populate the FHIR Device resource. Expandable for roadmap Device Information Service support.
+Used by adapters to populate the FHIR Device resource. `simulated=True` labels the Device and every Observation from it with the `HTEST` security label (ADR-0002). Expandable for roadmap Device Information Service support.
 
 ---
 

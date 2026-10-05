@@ -5,6 +5,25 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-05] — Mark patient-generated and simulated Observations
+
+Observations now say that the patient collected them with a personal health device, so a
+receiving EHR can tell them apart from clinician-recorded vitals, and simulated readings are
+labelled as test data. The choices, sources and validator evidence are in ADR-0002 (issue #6).
+
+- Added: `docs/adr-0002-mark-patient-generated-and-simulated-observations.md`
+- Changed: `ScalarVitalMapper` and `ComponentVitalMapper` set `performer` to the Patient and
+  add the PHD IG category `PhdObservationCategories#phd` after `vital-signs`
+- Added: `DeviceInfo.simulated` (default `False`); the five mock adapters set it. `build_device`
+  labels a simulated Device with the `HTEST` security label (`v3-ActReason`)
+- Added: `fhir.mark_simulated` (and `__all__`), `fhir/provenance.py` (`PHD_CATEGORY`,
+  `HTEST_SECURITY_LABEL`); the `Orchestrator` labels every Observation from a simulated device
+- Changed: steering `fhir-conventions.md` (canonical Observation shape, and when fields beyond
+  US Core requirements are allowed) and `object-model.md`; `docs/fhir-api.md`,
+  `docs/standards-and-related-work.md`, and the open question in `brief-standards-alignment.md`
+- Migration: a third-party adapter for simulated data should set `DeviceInfo(simulated=True)`.
+  A third-party `VitalMapper` should add `performer` and the `phd` category as well
+
 ## [2026-10-05] — Demo mode: run the mock without a token
 
 `VOF_API_TOKEN` is now optional. Without it the service starts in demo mode: a mock adapter

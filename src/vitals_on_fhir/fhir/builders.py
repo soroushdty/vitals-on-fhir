@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from vitals_on_fhir.fhir.provenance import HTEST_SECURITY_LABEL
 from vitals_on_fhir.vitals.base import DeviceInfo
 
 if TYPE_CHECKING:
@@ -62,6 +63,7 @@ def build_device(device_info: DeviceInfo) -> Device:
     is deterministic across restarts within a session. Each entry in
     ``device_info.identifiers`` becomes a FHIR ``identifier`` (its key is used
     as the identifier ``system`` and its value as the identifier ``value``).
+    A simulated device gets the ``HTEST`` security label.
 
     Args:
         device_info: Immutable description of the physical or simulated device.
@@ -83,6 +85,9 @@ def build_device(device_info: DeviceInfo) -> Device:
     ]
     if identifiers:
         data["identifier"] = identifiers
+    if device_info.simulated:
+        # A simulated device is labelled as test data, like its Observations (ADR-0002).
+        data["meta"] = {"security": [dict(HTEST_SECURITY_LABEL)]}
     return Device.model_validate(data)
 
 
