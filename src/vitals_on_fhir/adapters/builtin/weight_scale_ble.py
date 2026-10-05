@@ -1,18 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Concrete BLE adapter for the standard Bluetooth Blood Pressure Service (GATT 0x1810).
+"""Concrete BLE adapter for the standard Bluetooth Weight Scale Service (GATT 0x181D).
 
-``BloodPressureBleAdapter`` acquires blood-pressure readings from any device
-implementing the standard Blood Pressure Service and its Blood Pressure
-Measurement characteristic (``0x2A35``). It reuses the shared
+``WeightScaleBleAdapter`` acquires body-weight readings from any device
+implementing the standard Weight Scale Service (WSS) and its Weight Measurement
+characteristic (``0x2A9D``). It reuses the shared
 :class:`~vitals_on_fhir.adapters.BleConnection` lifecycle *by composition* —
-scanning, connecting, subscribing, and reconnecting are implemented once there —
-and delegates payload decoding to ``BloodPressureMeasurementParser``.
+scanning, connecting, subscribing (``bleak`` handles the characteristic's
+indications transparently), and reconnecting are implemented once there — and
+delegates payload decoding to ``WeightMeasurementParser``.
 
 ``bleak`` is imported lazily inside :class:`BleConnection`; it is never imported
 at the module level here.
 
 Device and brand names are not referenced: this adapter targets the vendor-
-neutral standard profile, so any conforming cuff is supported.
+neutral standard profile, so any conforming weight scale is supported. Consumer
+body-composition scales that use a proprietary BLE protocol (rather than the
+standard Weight Scale Service) are not supported here; their route is the
+phase-3 phone-aggregator path (see ``docs/roadmap.md``).
 """
 
 from __future__ import annotations
@@ -23,27 +27,28 @@ from typing import TYPE_CHECKING, ClassVar
 from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
 from vitals_on_fhir.adapters.ble import BleConnection, GattCharacteristicParser
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
-from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
+from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 
 if TYPE_CHECKING:
     from datetime import datetime, tzinfo
 
-#: GATT UUID of the Blood Pressure Service (0x1810), used to filter advertisements.
-BLOOD_PRESSURE_SERVICE_UUID = "00001810-0000-1000-8000-00805f9b34fb"
+#: GATT UUID of the Weight Scale Service (0x181D), used to filter advertisements.
+WEIGHT_SCALE_SERVICE_UUID = "0000181d-0000-1000-8000-00805f9b34fb"
 
-#: GATT UUID of the Blood Pressure Measurement characteristic (0x2A35).
-BLOOD_PRESSURE_MEASUREMENT_UUID = "00002a35-0000-1000-8000-00805f9b34fb"
+#: GATT UUID of the Weight Measurement characteristic (0x2A9D).
+WEIGHT_MEASUREMENT_UUID = "00002a9d-0000-1000-8000-00805f9b34fb"
 
 
-class BloodPressureBleAdapter(DeviceAdapter):
-    """BLE adapter for the standard Bluetooth Blood Pressure Service.
+class WeightScaleBleAdapter(DeviceAdapter):
+    """BLE adapter for the standard Bluetooth Weight Scale Service.
 
     Composes a :class:`~vitals_on_fhir.adapters.BleConnection` configured for the
-    Blood Pressure Service and delegates the connection lifecycle to it. Yields
-    ``BloodPressure`` readings decoded by ``BloodPressureMeasurementParser``.
+    Weight Scale Service and delegates the connection lifecycle to it. Yields
+    ``BodyWeight`` readings decoded by ``WeightMeasurementParser`` from the Weight
+    Measurement characteristic.
     """
 
-    supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (BloodPressure,)
+    supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (BodyWeight,)
 
     def __init__(
         self,
@@ -53,7 +58,7 @@ class BloodPressureBleAdapter(DeviceAdapter):
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
     ) -> None:
-        """Initialize the adapter, composing a Blood Pressure Service lifecycle.
+        """Initialize the adapter, composing a Weight Scale Service lifecycle.
 
         Args:
             device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
@@ -71,8 +76,8 @@ class BloodPressureBleAdapter(DeviceAdapter):
         self._now = now
         self._tz = tz
         self._connection = BleConnection(
-            service_uuid=BLOOD_PRESSURE_SERVICE_UUID,
-            characteristic_uuid=BLOOD_PRESSURE_MEASUREMENT_UUID,
+            service_uuid=WEIGHT_SCALE_SERVICE_UUID,
+            characteristic_uuid=WEIGHT_MEASUREMENT_UUID,
             matches=self.matches,
             parser_factory=self._build_parser,
             device_name=device_name,
@@ -80,24 +85,23 @@ class BloodPressureBleAdapter(DeviceAdapter):
         )
 
     def matches(self, advertisement: object) -> bool:
-        """Return ``True`` for any standard blood-pressure device advertisement.
+        """Return ``True`` for any standard weight-scale advertisement.
 
         Advertisements reaching this predicate are already pre-filtered by the
-        Blood Pressure Service UUID during the scan, which is authoritative for
-        selecting a conforming cuff — so every candidate matches. The optional
-        ``device_name`` filter (applied by the composed ``BleConnection``)
-        remains available (applied by the composed ``BleConnection``) to
-        disambiguate when several BP devices are in range.
+        Weight Scale Service UUID during the scan, which is authoritative for
+        selecting a conforming device — so every candidate matches. The optional
+        ``device_name`` filter (applied by the composed ``BleConnection``) remains
+        available to disambiguate when several scales are in range.
         """
         return True
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return vendor-neutral device metadata for a standard BP cuff."""
+        """Return vendor-neutral device metadata for a standard weight scale."""
         return DeviceInfo(
             manufacturer="Generic",
-            model="Blood Pressure Monitor",
-            identifiers={"profile": "org.bluetooth.service.blood_pressure"},
+            model="Weight Scale",
+            identifiers={"profile": "org.bluetooth.service.weight_scale"},
         )
 
     @property
@@ -106,7 +110,7 @@ class BloodPressureBleAdapter(DeviceAdapter):
         return self._connection.state
 
     async def connect(self) -> None:
-        """Scan for, connect to, and subscribe to a blood-pressure device."""
+        """Scan for, connect to, and subscribe to a weight-scale device."""
         await self._connection.connect()
 
     async def disconnect(self) -> None:
@@ -114,19 +118,19 @@ class BloodPressureBleAdapter(DeviceAdapter):
         await self._connection.disconnect()
 
     def vitals(self) -> AsyncIterator[VitalSign]:
-        """Yield ``BloodPressure`` readings parsed from BLE notifications."""
+        """Yield ``BodyWeight`` readings parsed from BLE indications."""
         return self._connection.vitals()
 
     def _build_parser(self) -> GattCharacteristicParser:
-        """Construct the Blood Pressure Measurement parser for the composed lifecycle.
+        """Construct the Weight Measurement parser for the composed lifecycle.
 
         Imported lazily to respect the package dependency direction
-        (``adapters.bp_parser`` imports ``adapters.ble``, so importing it at
+        (``adapters.weight_parser`` imports ``adapters.ble``, so importing it at
         module load here would risk an import cycle).
         """
-        from vitals_on_fhir.adapters.bp_parser import BloodPressureMeasurementParser
+        from vitals_on_fhir.adapters.weight_parser import WeightMeasurementParser
 
-        return BloodPressureMeasurementParser(
+        return WeightMeasurementParser(
             device_id=self.device_info.identifiers["profile"],
             now=self._now,
             tz=self._tz,

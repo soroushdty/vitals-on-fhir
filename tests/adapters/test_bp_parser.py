@@ -10,7 +10,8 @@ Requirements: FR-HH-5, FR-HH-6.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -123,6 +124,32 @@ def test_decode_timestamp_is_local_aware() -> None:
     assert result.tzinfo is not None
     assert (result.year, result.month, result.day) == (2026, 9, 23)
     assert (result.hour, result.minute, result.second) == (14, 5, 30)
+
+
+def test_decode_timestamp_tz_none_matches_host_local() -> None:
+    """``tz=None`` reproduces the host-local tz-aware result (design Testing Strategy 7)."""
+    payload = (2026).to_bytes(2, "little") + bytes([9, 23, 14, 5, 30])
+    # The explicit two-argument default and the historical call must agree.
+    assert decode_timestamp(payload, 0, None) == decode_timestamp(payload, 0)
+
+
+def test_decode_timestamp_explicit_zone_keeps_wall_clock() -> None:
+    """An explicit ``tz`` keeps wall-clock fields with that zone's offset (Testing Strategy 8)."""
+    payload = (2026).to_bytes(2, "little") + bytes([9, 23, 14, 5, 30])
+    result = decode_timestamp(payload, 0, ZoneInfo("UTC"))
+    assert result is not None
+    # Same wall-clock fields as the payload, but now interpreted as UTC.
+    assert (result.year, result.month, result.day) == (2026, 9, 23)
+    assert (result.hour, result.minute, result.second) == (14, 5, 30)
+    assert result.utcoffset() == timedelta(0)
+
+
+def test_decode_timestamp_invalid_calendar_returns_none_regardless_of_tz() -> None:
+    """An invalid-calendar payload returns ``None`` whether or not a ``tz`` is given."""
+    # Month 0 is not a valid calendar month (org.bluetooth "unknown" encoding).
+    payload = (2026).to_bytes(2, "little") + bytes([0, 23, 14, 5, 30])
+    assert decode_timestamp(payload, 0) is None
+    assert decode_timestamp(payload, 0, ZoneInfo("UTC")) is None
 
 
 # --- parse() contract ---------------------------------------------------------

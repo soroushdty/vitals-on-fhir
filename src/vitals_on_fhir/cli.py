@@ -12,8 +12,8 @@ Responsibilities (design §11):
    logged — it may carry ``VOF_API_TOKEN`` (NFR-5, ``security-privacy.md``).
 2. Parse ``--adapter`` (defaulting to the configured value) and resolve it to a
    concrete :class:`~vitals_on_fhir.adapters.DeviceAdapter`: the short names
-   ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``, ``miband10``, ``bp``,
-   ``spo2``, and ``temp`` map
+   ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``, ``mock-weight``,
+   ``miband10``, ``bp``, ``spo2``, ``temp``, and ``weight`` map
    to the built-in adapters, and any other value is treated as a fully
    qualified ``package.module.ClassName`` imported via :mod:`importlib` (FR-13).
 3. Build the startup ``Patient`` and ``Device`` resources and derive their
@@ -37,6 +37,7 @@ import asyncio
 import importlib
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import tzinfo
 from pathlib import Path
 from typing import cast
 
@@ -53,11 +54,13 @@ from vitals_on_fhir.adapters import (
     MockBloodPressureAdapter,
     MockOximeterAdapter,
     MockThermometerAdapter,
+    MockWeightAdapter,
     PulseOximeterBleAdapter,
+    WeightScaleBleAdapter,
 )
 from vitals_on_fhir.api import StaticTokenAuthenticator, create_app
 from vitals_on_fhir.api.app import BroadcasterLike
-from vitals_on_fhir.config import Settings
+from vitals_on_fhir.config import DEFAULT_CONFIG_PATH, Settings, resolve_timezone
 from vitals_on_fhir.dashboard import DashboardBroadcaster
 from vitals_on_fhir.fhir import ScalarVitalMapper, build_device, build_patient
 from vitals_on_fhir.pipeline import ObservationSink, Orchestrator
@@ -72,6 +75,7 @@ from vitals_on_fhir.validation import (
 from vitals_on_fhir.vitals import (
     BloodPressure,
     BodyTemperature,
+    BodyWeight,
     HeartRate,
     OxygenSaturation,
 )
@@ -84,12 +88,47 @@ logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(_dashboard.__file__).parent / "static"
 
 
-def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
+def _resolve_config_path(argv: list[str] | None = None) -> Path:
+    """Resolve the ``config.yaml`` path from ``--config``, validating explicit-missing.
+
+    ``--config`` must be known before :class:`Settings` is built because it
+    selects which file the YAML tier reads.  A small ``parse_known_args`` pass
+    reads it ahead of the full argument parse (design §4, Architecture).
+
+    Args:
+        argv: Argument vector to parse (defaults to ``sys.argv[1:]``).
+
+    Returns:
+        The resolved :class:`~pathlib.Path`.  With no ``--config`` this is the
+        default ``config.yaml`` at the working directory (repo root); a missing
+        *default* file stays a silent no-op (FR-CFG-1).
+
+    Raises:
+        FileNotFoundError: If ``--config PATH`` is given explicitly and ``PATH``
+            does not exist — fail loud, naming the path, distinct from the
+            absent-default no-op (FR-CFG-6, design §4).
+    """
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config", default=None)
+    known, _ = pre_parser.parse_known_args(argv)
+
+    if known.config is None:
+        return DEFAULT_CONFIG_PATH
+
+    explicit = Path(known.config)
+    if not explicit.exists():
+        raise FileNotFoundError(f"Config file not found: {explicit}")
+    return explicit
+
+
+def _resolve_adapter(
+    adapter_spec: str, settings: Settings, tz: tzinfo | None = None
+) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
 
     The short names ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``,
-    ``miband10``, ``bp``, ``spo2``, and ``temp`` map to the shipped built-in
-    adapters.  Any other value is
+    ``mock-weight``, ``miband10``, ``bp``, ``spo2``, ``temp``, and ``weight`` map
+    to the shipped built-in adapters.  Any other value is
     treated as a fully qualified ``package.module.ClassName`` and imported
     dynamically, so third-party adapters are selectable without modifying the
     repository (FR-13).
@@ -99,6 +138,10 @@ def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
             qualified class path.
         settings: The loaded application settings (passed through to adapters
             that accept configuration).
+        tz: The resolved timezone in which to interpret a device's zoneless
+            timestamp, forwarded to the three timestamp-decoding BLE adapters
+            (``bp``, ``temp``, ``weight``).  ``None`` preserves host-local
+            behavior (FR-CFG-4, design §4).
 
     Returns:
         An instantiated ``DeviceAdapter``.
@@ -115,21 +158,25 @@ def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
     if adapter_spec == "miband10":
         return MiBand10Adapter(device_name=settings.device_name)
     if adapter_spec == "bp":
-        return BloodPressureBleAdapter(device_name=settings.device_name)
+        return BloodPressureBleAdapter(device_name=settings.device_name, tz=tz)
     if adapter_spec == "spo2":
         return PulseOximeterBleAdapter(device_name=settings.device_name)
     if adapter_spec == "mock-spo2":
         return MockOximeterAdapter()
     if adapter_spec == "temp":
-        return HealthThermometerBleAdapter(device_name=settings.device_name)
+        return HealthThermometerBleAdapter(device_name=settings.device_name, tz=tz)
     if adapter_spec == "mock-temp":
         return MockThermometerAdapter()
+    if adapter_spec == "weight":
+        return WeightScaleBleAdapter(device_name=settings.device_name, tz=tz)
+    if adapter_spec == "mock-weight":
+        return MockWeightAdapter()
 
     if "." not in adapter_spec:
         raise ValueError(
             f"Unknown adapter '{adapter_spec}'. Use 'mock', 'mock-bp', 'mock-spo2', "
-            "'mock-temp', 'miband10', 'bp', 'spo2', 'temp', or a fully qualified "
-            "'package.module.ClassName'."
+            "'mock-temp', 'mock-weight', 'miband10', 'bp', 'spo2', 'temp', 'weight', "
+            "or a fully qualified 'package.module.ClassName'."
         )
 
     module_path, _, class_name = adapter_spec.rpartition(".")
@@ -183,6 +230,7 @@ def _build_orchestrator(
         HeartRate: (settings.hr_min, settings.hr_max),
         OxygenSaturation: (settings.spo2_min, settings.spo2_max),
         BodyTemperature: (settings.temp_min, settings.temp_max),
+        BodyWeight: (settings.weight_min, settings.weight_max),
     }
     chain = ValidatorChain(
         [
@@ -217,7 +265,10 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
         settings: The loaded application settings.
         adapter_spec: The adapter short name or fully qualified class path.
     """
-    adapter = _resolve_adapter(adapter_spec, settings)
+    # Resolve the configured zone once at startup; threaded to the three
+    # timestamp-decoding BLE adapters (FR-CFG-4, design §4).
+    tz = resolve_timezone(settings.timezone)
+    adapter = _resolve_adapter(adapter_spec, settings, tz)
 
     device = build_device(adapter.device_info)
     patient = build_patient(settings.patient_id)
@@ -277,18 +328,33 @@ def main() -> None:
     call in the codebase.  Configuration values (including ``VOF_API_TOKEN``)
     are never logged (NFR-5).
     """
-    # Fields are sourced from the environment (VOF_ prefix); mypy cannot see the
-    # pydantic-settings env sources and flags the required api_token as missing.
-    settings = Settings()  # type: ignore[call-arg]
+    # ``--config`` selects which file the YAML tier reads and must be known
+    # before Settings is built, so resolve it via a small parse_known_args pass
+    # first (FR-CFG-6, design §4).  An explicit missing path fails loud here;
+    # any Settings() construction error (unknown key, malformed YAML, invalid
+    # timezone) propagates unmodified and aborts startup (design Error Handling).
+    config_path = _resolve_config_path()
+
+    # Fields are sourced from CLI init, the environment (VOF_ prefix), and
+    # config.yaml; see Settings for the precedence chain.
+    settings = Settings(_yaml_path=config_path)
 
     parser = argparse.ArgumentParser(prog="vitals-on-fhir")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help=(
+            "Path to the config.yaml file (default: config.yaml in the working "
+            "directory). An explicit path that does not exist fails at startup."
+        ),
+    )
     parser.add_argument(
         "--adapter",
         default=settings.adapter,
         help=(
             "Device adapter: 'mock', 'mock-bp', 'mock-spo2', 'mock-temp', "
-            "'miband10', 'bp', 'spo2', 'temp', or a fully qualified "
-            "'package.module.ClassName'."
+            "'mock-weight', 'miband10', 'bp', 'spo2', 'temp', 'weight', or a "
+            "fully qualified 'package.module.ClassName'."
         ),
     )
     args = parser.parse_args()

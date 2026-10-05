@@ -25,7 +25,7 @@ interpreted as the host's local time and returned timezone-aware.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import NamedTuple
 
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
@@ -126,6 +126,7 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
         self,
         device_id: str,
         now: Callable[[], datetime] | None = None,
+        tz: tzinfo | None = None,
     ) -> None:
         """Create a parser bound to a device identity and clock.
 
@@ -135,8 +136,14 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
                 ``effective`` time when the payload carries no timestamp.
                 Defaults to a local-aware ``datetime.now().astimezone()``.
                 Injectable so tests can pin the clock.
+            tz: Timezone in which to interpret a device-supplied zoneless
+                timestamp. ``None`` (the default) preserves the host-local
+                behavior; a non-``None`` value interprets the device wall-clock
+                as being in that zone. The ``now`` fallback (no-timestamp path)
+                is unaffected.
         """
         self._device_id = device_id
+        self._tz = tz
         self._now: Callable[[], datetime] = (
             now if now is not None else (lambda: datetime.now().astimezone())
         )
@@ -170,7 +177,7 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
 
         if flags.timestamp_present:
             # Timestamp follows the three mandatory SFLOATs (offset 7).
-            effective = decode_timestamp(data, 1 + 3 * SFLOAT_SIZE)
+            effective = decode_timestamp(data, 1 + 3 * SFLOAT_SIZE, self._tz)
             if effective is None:
                 return None
         else:

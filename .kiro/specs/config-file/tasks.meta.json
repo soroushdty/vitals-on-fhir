@@ -1,0 +1,135 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 `Settings` YAML + precedence + timezone tests (extend `tests/test_config.py`)": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215996766
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216016547
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216423190
+      }
+    ],
+    "2.1 `decode_timestamp` tz tests (extend the existing datetime_field tests)": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215996946
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216022821
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216423938
+      }
+    ],
+    "3.1 Parser timezone threading + no-timestamp-unchanged tests": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215997090
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216428953
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220322439
+      }
+    ],
+    "4.1 CLI precedence + `--config` resolution tests": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215997188
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220336850
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220505312
+      }
+    ],
+    "5. Declare the dependency and add the example + ignore files": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215997272
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216429440
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220323218
+      }
+    ],
+    "6. Docs, changelog, brief update, and full verification": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790215997335
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220509171
+      },
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220636835
+      }
+    ],
+    "1. Add the `config.yaml` source and the `timezone` field to `Settings`": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216423260
+      }
+    ],
+    "2. Add the timezone parameter to the shared `decode_timestamp` helper": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790216424051
+      }
+    ],
+    "3. Thread `timezone` through the timestamp-decoding parsers and their adapters": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220322520
+      }
+    ],
+    "4. Resolve the config path and wire precedence in the composition root": [
+      {
+        "executionId": "6ede5cc0-7356-4c52-8bad-68fbe2363bfa",
+        "chatSessionId": "sess_bdccefa1-c199-4913-a9ac-d0fb0e289429",
+        "timestamp": 1790220505358
+      }
+    ]
+  }
+}

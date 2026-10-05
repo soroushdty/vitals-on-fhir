@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import NamedTuple
 
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
@@ -117,6 +117,7 @@ class TemperatureMeasurementParser(GattCharacteristicParser):
         self,
         device_id: str,
         now: Callable[[], datetime] | None = None,
+        tz: tzinfo | None = None,
     ) -> None:
         """Create a parser bound to a device identity and clock.
 
@@ -126,8 +127,14 @@ class TemperatureMeasurementParser(GattCharacteristicParser):
                 ``effective`` time when the payload carries no timestamp.
                 Defaults to a local-aware ``datetime.now().astimezone()``.
                 Injectable so tests can pin the clock.
+            tz: Timezone in which to interpret a device-supplied zoneless
+                timestamp. ``None`` (the default) preserves the host-local
+                behavior; a non-``None`` value interprets the device wall-clock
+                as being in that zone. The ``now`` fallback (no-timestamp path)
+                is unaffected.
         """
         self._device_id = device_id
+        self._tz = tz
         self._now: Callable[[], datetime] = (
             now if now is not None else (lambda: datetime.now().astimezone())
         )
@@ -165,7 +172,7 @@ class TemperatureMeasurementParser(GattCharacteristicParser):
             temp = fahrenheit_to_celsius(temp)
 
         if flags.timestamp_present:
-            effective = decode_timestamp(data, _TIMESTAMP_OFFSET)
+            effective = decode_timestamp(data, _TIMESTAMP_OFFSET, self._tz)
             if effective is None:
                 _logger.debug(
                     "Dropping temperature payload with invalid timestamp (%d bytes)",

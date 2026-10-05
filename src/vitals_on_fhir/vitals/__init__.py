@@ -10,6 +10,7 @@ from vitals_on_fhir.vitals.base import (
 )
 from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
+from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
 from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 
@@ -23,6 +24,7 @@ __all__ = [
     "BloodPressure",
     "OxygenSaturation",
     "BodyTemperature",
+    "BodyWeight",
     "DeviceInfo",
     "ComponentSpec",
 ]
