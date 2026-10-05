@@ -1,0 +1,18 @@
+# vitals-on-fhir YAML configuration (optional).
+#
+# Copy to config.yaml (picked up automatically from the working directory) or
+# pass a path with: vitals-on-fhir --config path/to/config.yaml
+#
+# Keys are the VOF_* environment variables, lowercase and without the prefix.
+# Environment variables and .env take precedence over this file. Unknown keys
+# are rejected at startup.
+#
+# Do NOT put api_token here: keep VOF_API_TOKEN in the environment or .env.
+
+adapter: mock
+
+# Mock heart-rate adapter: the simulated rate wanders between these bounds (bpm)
+# and a new reading is produced every mock_interval seconds.
+mock_hr_min: 40
+mock_hr_max: 100
+mock_interval: 1.0

@@ -187,3 +187,45 @@ def test_static_dashboard_contains_ble_and_scope_disclaimers() -> None:
     # Not-HIPAA / local-only research-use note.
     assert "hipaa" in html
     assert "not a medical device" in html
+
+
+def test_late_client_receives_last_connection_state() -> None:
+    """A client registering after a state change is told the current state at once.
+
+    The mock adapter "connects" at startup, before any browser has opened the
+    WebSocket; without replay the dashboard would never learn it is connected.
+    """
+
+    async def scenario() -> tuple[list[str], list[str]]:
+        broadcaster = DashboardBroadcaster()
+        await broadcaster.on_state_change("connecting")
+        await broadcaster.on_state_change("connected")
+        late = FakeWebSocket()
+        await broadcaster.register(late)
+        await broadcaster.on_state_change("disconnected")
+        return late.messages, [json.loads(m)["state"] for m in late.messages]
+
+    messages, states = asyncio.run(scenario())
+
+    assert all(json.loads(m)["type"] == "connection_state" for m in messages)
+    assert states == ["connected", "disconnected"]
+
+
+def test_register_before_any_state_sends_nothing() -> None:
+    """With no state reported yet, registering does not invent one."""
+
+    async def scenario() -> list[str]:
+        broadcaster = DashboardBroadcaster()
+        client = FakeWebSocket()
+        await broadcaster.register(client)
+        return client.messages
+
+    assert asyncio.run(scenario()) == []
+
+
+def test_dashboard_has_live_chart_assets() -> None:
+    """The dashboard page ships the chart container, and the script draws into it."""
+    static = Path(__file__).resolve().parents[2] / "src/vitals_on_fhir/dashboard/static"
+
+    assert 'id="hr-chart"' in (static / "index.html").read_text(encoding="utf-8")
+    assert "hr-chart" in (static / "app.js").read_text(encoding="utf-8")

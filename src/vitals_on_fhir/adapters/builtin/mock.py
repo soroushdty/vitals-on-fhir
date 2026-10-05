@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import random
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar
@@ -25,6 +26,8 @@ from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 _DEFAULT_INTERVAL = 0.01  # seconds between yields; small so tests stay fast
 _VALID_HEART_RATE = 72.0  # bpm, comfortably inside the plausible range
 _IMPLAUSIBLE_HEART_RATE = 300.0  # bpm, above the default plausible upper bound
+_HR_WALK_STEP = 0.06  # per-reading noise, as a fraction of the configured range
+_HR_WALK_PULL = 0.1  # per-reading pull back toward the middle of the range
 
 
 class EmissionMode(enum.Enum):
@@ -47,8 +50,9 @@ class MockAdapter(DeviceAdapter):
     values, or readings with lost sensor contact so the full validator chain
     can be exercised in tests. An optional ``count`` bounds how many readings
     are yielded (``None`` yields indefinitely until disconnected), and
-    ``interval`` sets the cooperative delay between yields. Never imports
-    ``bleak``.
+    ``interval`` sets the cooperative delay between yields. With ``hr_range``
+    set, ``VALID`` readings wander within that range like a resting heart rate
+    instead of repeating one fixed value. Never imports ``bleak``.
     """
 
     supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (HeartRate,)
@@ -59,6 +63,8 @@ class MockAdapter(DeviceAdapter):
         *,
         interval: float = _DEFAULT_INTERVAL,
         count: int | None = None,
+        hr_range: tuple[float, float] | None = None,
+        rng: random.Random | None = None,
     ) -> None:
         """Create a mock adapter.
 
@@ -68,10 +74,22 @@ class MockAdapter(DeviceAdapter):
             interval: Seconds to sleep between yielded readings.
             count: Maximum number of readings to yield, or ``None`` to yield
                 indefinitely until ``disconnect`` is called.
+            hr_range: ``(low, high)`` bpm bounds for variable ``VALID`` readings,
+                or ``None`` to emit a fixed 72 bpm.
+            rng: Random source for variable readings; pass a seeded
+                ``random.Random`` for reproducible output.
+
+        Raises:
+            ValueError: If ``hr_range`` is given and ``low`` is not below ``high``.
         """
+        if hr_range is not None and hr_range[0] >= hr_range[1]:
+            raise ValueError("hr_range must be (low, high) with low < high")
         self._emission_mode = emission_mode
         self._interval = interval
         self._count = count
+        self._hr_range = hr_range
+        self._rng = rng if rng is not None else random.Random()
+        self._hr: float | None = None
         self._state = ConnectionState.DISCONNECTED
 
     @property
@@ -137,9 +155,25 @@ class MockAdapter(DeviceAdapter):
         return HeartRate(
             effective=effective,
             device_id=self._device_id(),
-            value=_VALID_HEART_RATE,
+            value=self._next_heart_rate(),
             sensor_contact=True,
         )
+
+    def _next_heart_rate(self) -> float:
+        """Return the next valid heart rate in bpm.
+
+        Fixed at 72 bpm unless ``hr_range`` was given.  Otherwise a mean-reverting
+        random walk, rounded to whole bpm and kept inside the range, so the
+        series looks like a real heart rate rather than uncorrelated noise.
+        """
+        if self._hr_range is None:
+            return _VALID_HEART_RATE
+        low, high = self._hr_range
+        middle = (low + high) / 2
+        current = middle if self._hr is None else self._hr
+        step = self._rng.gauss(0.0, (high - low) * _HR_WALK_STEP)
+        self._hr = min(max(current + _HR_WALK_PULL * (middle - current) + step, low), high)
+        return min(max(float(round(self._hr)), low), high)
 
     def _device_id(self) -> str:
         """Return the device identifier used for readings from this adapter."""

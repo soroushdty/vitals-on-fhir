@@ -5,6 +5,24 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-05] — Mock heart-rate range, YAML config, live chart
+
+The `mock` adapter now produces a varying heart rate within a configurable range instead of a
+constant 72 bpm, settings can come from an optional YAML file, and the dashboard shows a live chart
+and a correct connection status for clients that connect after the device.
+
+- Added: `VOF_MOCK_HR_MIN` / `VOF_MOCK_HR_MAX` (default `40` / `100`) and `VOF_MOCK_INTERVAL`
+  (default `1.0` s) config variables; `MockAdapter` takes `hr_range` and `rng`. Without `hr_range`
+  it still emits a fixed 72 bpm, so existing tests and callers are unaffected
+- Added: optional YAML config source in `config.py` below the environment and `.env`, via
+  `Settings(_yaml_path=...)`, `--config` and a default `./config.yaml`; unknown keys are rejected.
+  Example in `config.example.yaml`. `pyyaml` is now a declared dependency
+- Changed: `DashboardBroadcaster.register` sends the last known `connection_state` to a newly
+  connected client, and the dashboard marks the device connected when a reading arrives
+- Added: live two-minute heart-rate chart with lowest/average/highest in `dashboard/static`
+- Changed: started from the CLI, the `mock` adapter now emits one reading per second (was one per
+  10 ms); `--adapter` is parsed before settings load and still defaults to `VOF_ADAPTER`
+
 ## [2026-09-23] — Body temperature (spec/body-temperature)
 
 Implements the third phase-2 slice: acquiring body temperature over the standard

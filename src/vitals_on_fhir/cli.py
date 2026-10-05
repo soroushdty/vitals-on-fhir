@@ -8,8 +8,10 @@ classes from every package are named and wired together, and the only place
 
 Responsibilities (design §11):
 
-1. Load :class:`~vitals_on_fhir.config.Settings` once.  Configuration is never
-   logged — it may carry ``VOF_API_TOKEN`` (NFR-5, ``security-privacy.md``).
+1. Load :class:`~vitals_on_fhir.config.Settings` once, layering the optional
+   ``--config`` YAML file (default ``config.yaml`` if present) under the
+   environment.  Configuration is never logged — it may carry ``VOF_API_TOKEN``
+   (NFR-5, ``security-privacy.md``).
 2. Parse ``--adapter`` (defaulting to the configured value) and resolve it to a
    concrete :class:`~vitals_on_fhir.adapters.DeviceAdapter`: the short names
    ``mock``, ``mock-bp``, ``mock-spo2``, ``mock-temp``, ``miband10``, ``bp``,
@@ -83,6 +85,9 @@ logger = logging.getLogger(__name__)
 #: so importing the module here to locate its assets is allowed.
 _STATIC_DIR = Path(_dashboard.__file__).parent / "static"
 
+#: YAML config file picked up from the working directory when ``--config`` is absent.
+_DEFAULT_CONFIG_FILE = "config.yaml"
+
 
 def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
@@ -109,7 +114,10 @@ def _resolve_adapter(adapter_spec: str, settings: Settings) -> DeviceAdapter:
             resolved class is not a ``DeviceAdapter`` subclass.
     """
     if adapter_spec == "mock":
-        return MockAdapter()
+        return MockAdapter(
+            hr_range=(settings.mock_hr_min, settings.mock_hr_max),
+            interval=settings.mock_interval,
+        )
     if adapter_spec == "mock-bp":
         return MockBloodPressureAdapter()
     if adapter_spec == "miband10":
@@ -271,26 +279,41 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
 def main() -> None:
     """Start the vitals-on-fhir service.
 
-    Loads :class:`~vitals_on_fhir.config.Settings` from the environment, parses
-    ``--adapter`` (defaulting to the configured adapter), and hands off to
-    :func:`_run` inside a single ``asyncio.run`` — the only ``asyncio.run``
-    call in the codebase.  Configuration values (including ``VOF_API_TOKEN``)
-    are never logged (NFR-5).
+    Parses ``--config`` and ``--adapter``, loads
+    :class:`~vitals_on_fhir.config.Settings` from the environment (plus the
+    optional YAML file), and hands off to :func:`_run` inside a single
+    ``asyncio.run`` — the only ``asyncio.run`` call in the codebase.
+    ``--adapter`` defaults to the configured adapter.  Configuration values
+    (including ``VOF_API_TOKEN``) are never logged (NFR-5).
     """
-    # Fields are sourced from the environment (VOF_ prefix); mypy cannot see the
-    # pydantic-settings env sources and flags the required api_token as missing.
-    settings = Settings()  # type: ignore[call-arg]
-
     parser = argparse.ArgumentParser(prog="vitals-on-fhir")
     parser.add_argument(
         "--adapter",
-        default=settings.adapter,
+        default=None,
         help=(
             "Device adapter: 'mock', 'mock-bp', 'mock-spo2', 'mock-temp', "
             "'miband10', 'bp', 'spo2', 'temp', or a fully qualified "
-            "'package.module.ClassName'."
+            "'package.module.ClassName'.  Defaults to the configured adapter."
+        ),
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help=(
+            f"YAML config file (see config.example.yaml).  Defaults to "
+            f"./{_DEFAULT_CONFIG_FILE} if it exists.  Environment variables win."
         ),
     )
     args = parser.parse_args()
 
-    asyncio.run(_run(settings, args.adapter))
+    config_path: Path | None = args.config
+    if config_path is None:
+        if Path(_DEFAULT_CONFIG_FILE).is_file():
+            config_path = Path(_DEFAULT_CONFIG_FILE)
+    elif not config_path.is_file():
+        parser.error(f"config file not found: {config_path}")
+
+    settings = Settings(_yaml_path=config_path)
+
+    asyncio.run(_run(settings, args.adapter or settings.adapter))

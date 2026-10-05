@@ -62,7 +62,7 @@ See [docs/fhir-api.md](docs/fhir-api.md) for the full endpoint reference and an 
 
 ## Configuration
 
-Configuration comes from environment variables (or `.env`). Unknown `VOF_*` variables are rejected at startup to catch typos.
+Configuration comes from environment variables (or `.env`), plus an optional YAML file: copy `config.example.yaml` to `config.yaml` (picked up from the working directory) or pass `--config path/to/file.yaml`. YAML keys are the variable names in lowercase without the `VOF_` prefix, and environment variables win over the file. Unknown `VOF_*` variables and unknown YAML keys are rejected at startup to catch typos. Keep `VOF_API_TOKEN` in the environment or `.env`, not in the YAML file.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -71,6 +71,8 @@ Configuration comes from environment variables (or `.env`). Unknown `VOF_*` vari
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `miband10`, or a fully qualified class path (`package.module.ClassName`) |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
+| `VOF_MOCK_HR_MIN` / `VOF_MOCK_HR_MAX` | `40` / `100` | Range (bpm) the `mock` adapter's simulated heart rate varies within |
+| `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
 | `VOF_STORE_MAX` | `10000` | Maximum Observations kept in memory |

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from vitals_on_fhir.config import Settings
 
@@ -198,3 +199,72 @@ def test_unknown_vof_variable_is_rejected(
 
     with pytest.raises(ValueError):
         Settings()  # type: ignore[call-arg]
+
+
+# --- YAML config file ------------------------------------------------------
+
+
+def _write_yaml(directory: Path, contents: str) -> Path:
+    """Write ``config.yaml`` into ``directory`` and return its path."""
+    path = directory / "config.yaml"
+    path.write_text(contents, encoding="utf-8")
+    return path
+
+
+def test_mock_hr_range_defaults_to_40_100(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no env or YAML the mock heart rate range is 40-100 bpm."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+
+    settings = Settings()
+
+    assert (settings.mock_hr_min, settings.mock_hr_max) == (40.0, 100.0)
+
+
+def test_yaml_file_sets_mock_hr_range(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keys in the YAML file override defaults; the token still comes from the env."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+    path = _write_yaml(tmp_path, "mock_hr_min: 55\nmock_hr_max: 130\nmock_interval: 0.5\n")
+
+    settings = Settings(_yaml_path=path)
+
+    assert (settings.mock_hr_min, settings.mock_hr_max) == (55.0, 130.0)
+    assert settings.mock_interval == 0.5
+
+
+def test_env_overrides_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Environment variables take precedence over the YAML file."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+    monkeypatch.setenv("VOF_MOCK_HR_MAX", "90")
+    path = _write_yaml(tmp_path, "mock_hr_min: 55\nmock_hr_max: 130\n")
+
+    settings = Settings(_yaml_path=path)
+
+    assert (settings.mock_hr_min, settings.mock_hr_max) == (55.0, 90.0)
+
+
+def test_yaml_unknown_key_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A typo in the YAML file fails at startup instead of being ignored."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+    path = _write_yaml(tmp_path, "mock_hr_minimum: 55\n")
+
+    with pytest.raises(ValidationError):
+        Settings(_yaml_path=path)
+
+
+def test_empty_yaml_file_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty (or comment-only) YAML file behaves like no file."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+    path = _write_yaml(tmp_path, "# nothing set\n")
+
+    assert Settings(_yaml_path=path).mock_hr_min == 40.0
+
+
+@pytest.mark.parametrize("low, high", [(100, 40), (70, 70)])
+def test_mock_hr_range_must_be_increasing(
+    low: float, high: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``mock_hr_min`` must be strictly below ``mock_hr_max``."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+
+    with pytest.raises(ValidationError):
+        Settings(mock_hr_min=low, mock_hr_max=high)

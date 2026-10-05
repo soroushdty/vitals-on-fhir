@@ -14,6 +14,9 @@
  *
  * While the device is disconnected the last reading is dimmed and no new
  * values are shown; presentation resumes automatically on reconnect (FR-6).
+ *
+ * Readings are also drawn as a live two-minute line chart (plain SVG, no
+ * libraries) with the lowest / average / highest value in view.
  */
 
 (function () {
@@ -31,6 +34,15 @@
   // we stop showing new values until the device reconnects (FR-6).
   var LIVE_STATES = { connected: true };
 
+  // Live chart: how much history is shown, and the SVG geometry (viewBox units).
+  var CHART_WINDOW_MS = 2 * 60 * 1000;
+  var CHART_REFRESH_MS = 1000;
+  var CHART_W = 600;
+  var CHART_H = 220;
+  var CHART_PAD = { left: 38, right: 12, top: 12, bottom: 24 };
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  var history = []; // [{ t: epoch ms, v: bpm }], oldest first
   var socket = null;
   var reconnectTimer = null;
   var manualClose = false;
@@ -46,6 +58,10 @@
     els.hrTimestamp = document.getElementById("hr-timestamp");
     els.reading = document.querySelector(".reading");
     els.connectionStatus = document.getElementById("connection-status");
+    els.chart = document.getElementById("hr-chart");
+    els.statMin = document.getElementById("stat-min");
+    els.statAvg = document.getElementById("stat-avg");
+    els.statMax = document.getElementById("stat-max");
   }
 
   function setStatus(text, kind) {
@@ -63,12 +79,138 @@
     if (els.reading) {
       els.reading.classList.add("stale");
     }
+    if (els.chart) {
+      els.chart.classList.add("stale");
+    }
   }
 
   function markLive() {
     if (els.reading) {
       els.reading.classList.remove("stale");
     }
+    if (els.chart) {
+      els.chart.classList.remove("stale");
+    }
+  }
+
+  function svgEl(name, attrs) {
+    var node = document.createElementNS(SVG_NS, name);
+    for (var key in attrs) {
+      node.setAttribute(key, attrs[key]);
+    }
+    return node;
+  }
+
+  // Round the plotted range outward to multiples of 10 bpm, at least 40 bpm
+  // tall, so the axis does not jump on every reading.
+  function chartRange(points) {
+    var lo = Infinity;
+    var hi = -Infinity;
+    points.forEach(function (p) {
+      lo = Math.min(lo, p.v);
+      hi = Math.max(hi, p.v);
+    });
+    if (!isFinite(lo)) {
+      return { lo: 40, hi: 120 };
+    }
+    lo = Math.floor(lo / 10) * 10;
+    hi = Math.ceil(hi / 10) * 10;
+    if (hi - lo < 40) {
+      var mid = (hi + lo) / 2;
+      lo = Math.floor((mid - 20) / 10) * 10;
+      hi = lo + 40;
+    }
+    return { lo: lo, hi: hi };
+  }
+
+  function drawChart() {
+    if (!els.chart) {
+      return;
+    }
+    var now = Date.now();
+    var start = now - CHART_WINDOW_MS;
+    history = history.filter(function (p) {
+      return p.t >= start;
+    });
+
+    var plotW = CHART_W - CHART_PAD.left - CHART_PAD.right;
+    var plotH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
+    var range = chartRange(history);
+    function x(t) {
+      return CHART_PAD.left + ((t - start) / CHART_WINDOW_MS) * plotW;
+    }
+    function y(v) {
+      return CHART_PAD.top + (1 - (v - range.lo) / (range.hi - range.lo)) * plotH;
+    }
+
+    var svg = svgEl("svg", {
+      viewBox: "0 0 " + CHART_W + " " + CHART_H,
+      "aria-hidden": "true",
+    });
+
+    // Horizontal gridlines with a bpm label each.
+    var step = (range.hi - range.lo) / 4;
+    for (var i = 0; i <= 4; i++) {
+      var v = range.lo + step * i;
+      svg.appendChild(
+        svgEl("line", { class: "grid", x1: CHART_PAD.left, x2: CHART_W - CHART_PAD.right, y1: y(v), y2: y(v) })
+      );
+      var label = svgEl("text", {
+        class: "axis-label",
+        x: CHART_PAD.left - 6,
+        y: y(v) + 4,
+        "text-anchor": "end",
+      });
+      label.textContent = String(Math.round(v));
+      svg.appendChild(label);
+    }
+
+    // Time axis: the window start and "now".
+    var startLabel = svgEl("text", { class: "axis-label", x: CHART_PAD.left, y: CHART_H - 6 });
+    startLabel.textContent = "2 min ago";
+    svg.appendChild(startLabel);
+    var nowLabel = svgEl("text", {
+      class: "axis-label",
+      x: CHART_W - CHART_PAD.right,
+      y: CHART_H - 6,
+      "text-anchor": "end",
+    });
+    nowLabel.textContent = "now";
+    svg.appendChild(nowLabel);
+
+    if (history.length === 0) {
+      var empty = svgEl("text", { class: "empty-label", x: CHART_W / 2, y: CHART_H / 2 });
+      empty.textContent = "Waiting for readings…";
+      svg.appendChild(empty);
+    } else {
+      var d = history
+        .map(function (p, idx) {
+          return (idx === 0 ? "M" : "L") + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1);
+        })
+        .join(" ");
+      svg.appendChild(svgEl("path", { class: "line", d: d }));
+      var last = history[history.length - 1];
+      svg.appendChild(svgEl("circle", { class: "dot", cx: x(last.t), cy: y(last.v), r: 4 }));
+    }
+
+    els.chart.replaceChildren(svg);
+    updateStats();
+  }
+
+  function updateStats() {
+    if (history.length === 0) {
+      els.statMin.textContent = els.statAvg.textContent = els.statMax.textContent = "—";
+      return;
+    }
+    var values = history.map(function (p) {
+      return p.v;
+    });
+    var sum = values.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    els.statMin.textContent = String(Math.round(Math.min.apply(null, values)));
+    els.statAvg.textContent = String(Math.round(sum / values.length));
+    els.statMax.textContent = String(Math.round(Math.max.apply(null, values)));
   }
 
   // Format an ISO 8601 instant into a friendly local time for non-technical
@@ -95,6 +237,16 @@
     }
     els.hrTimestamp.textContent = formatTimestamp(resource.effectiveDateTime);
     markLive();
+
+    // A reading arriving means the device is delivering data, whatever status
+    // message we last saw (e.g. one sent before this page connected).
+    setStatus(DEVICE_STATE_LABELS.connected, "connected");
+
+    if (typeof value === "number" && isFinite(value)) {
+      var t = Date.parse(resource.effectiveDateTime);
+      history.push({ t: isNaN(t) ? Date.now() : t, v: value });
+      drawChart();
+    }
   }
 
   function handleConnectionState(state) {
@@ -215,6 +367,9 @@
   function init() {
     cacheElements();
     els.form.addEventListener("submit", onSubmit);
+    drawChart();
+    // Slide the window forward between readings (and across disconnects).
+    window.setInterval(drawChart, CHART_REFRESH_MS);
   }
 
   if (document.readyState === "loading") {
