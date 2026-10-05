@@ -14,6 +14,9 @@ venv/
 # Environment / secrets
 .env
 
+# Runtime config (config.yaml.example is tracked; a populated config.yaml is not)
+config.yaml
+
 # Build
 dist/
 build/

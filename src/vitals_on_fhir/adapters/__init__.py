@@ -17,11 +17,14 @@ from vitals_on_fhir.adapters.builtin.mock import (
     MockBloodPressureAdapter,
     MockOximeterAdapter,
     MockThermometerAdapter,
+    MockWeightAdapter,
     OximeterEmissionMode,
     ThermometerEmissionMode,
+    WeightEmissionMode,
 )
 from vitals_on_fhir.adapters.builtin.pulse_oximeter_ble import PulseOximeterBleAdapter
 from vitals_on_fhir.adapters.builtin.thermometer_ble import HealthThermometerBleAdapter
+from vitals_on_fhir.adapters.builtin.weight_scale_ble import WeightScaleBleAdapter
 from vitals_on_fhir.adapters.parser import HeartRateMeasurementParser
 
 __all__ = [
@@ -47,4 +50,7 @@ __all__ = [
     "HealthThermometerBleAdapter",
     "MockThermometerAdapter",
     "ThermometerEmissionMode",
+    "WeightScaleBleAdapter",
+    "MockWeightAdapter",
+    "WeightEmissionMode",
 ]

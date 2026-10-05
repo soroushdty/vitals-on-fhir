@@ -5,23 +5,157 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
-## [2026-10-05] — Mock heart-rate range, YAML config, live chart
+## [2026-10-05] — Mock heart-rate range and live chart
 
 The `mock` adapter now produces a varying heart rate within a configurable range instead of a
-constant 72 bpm, settings can come from an optional YAML file, and the dashboard shows a live chart
-and a correct connection status for clients that connect after the device.
+constant 72 bpm, and the dashboard shows a live chart and a correct connection status for clients
+that connect after the device.
 
 - Added: `VOF_MOCK_HR_MIN` / `VOF_MOCK_HR_MAX` (default `40` / `100`) and `VOF_MOCK_INTERVAL`
   (default `1.0` s) config variables; `MockAdapter` takes `hr_range` and `rng`. Without `hr_range`
   it still emits a fixed 72 bpm, so existing tests and callers are unaffected
-- Added: optional YAML config source in `config.py` below the environment and `.env`, via
-  `Settings(_yaml_path=...)`, `--config` and a default `./config.yaml`; unknown keys are rejected.
-  Example in `config.example.yaml`. `pyyaml` is now a declared dependency
+- Changed: `mock_hr_min`, `mock_hr_max` and `mock_interval` are ordinary `Settings` fields, so
+  they can also be set in `config.yaml` (see `config.yaml.example`)
 - Changed: `DashboardBroadcaster.register` sends the last known `connection_state` to a newly
   connected client, and the dashboard marks the device connected when a reading arrives
 - Added: live two-minute heart-rate chart with lowest/average/highest in `dashboard/static`
 - Changed: started from the CLI, the `mock` adapter now emits one reading per second (was one per
-  10 ms); `--adapter` is parsed before settings load and still defaults to `VOF_ADAPTER`
+  10 ms)
+
+## [2026-09-23] — config.yaml configuration layer (spec/config-file)
+
+Implements the fifth and final phase-2 slice: promotes the idea-only
+`docs/brief-config-file.md` into a working feature. It adds a permanent
+`config.yaml` configuration tier beneath command-line arguments and environment
+variables, plus a single behavioral key — `timezone` — that makes the
+device-timestamp interpretation explicit and overridable. It adds no vital sign,
+adapter, FHIR mapper, validator, store, sink, or API route; the change is confined
+to the configuration surface (`config.py`, `cli.py`), one additive parameter on the
+shared timestamp decode path, a declared `pyyaml` dependency, and
+example/ignore/doc files. With no `config.yaml` on disk and no `VOF_TIMEZONE`/
+`timezone` set, behavior is byte-for-byte identical to the delivered
+`weight-body-mass` state. **This closes roadmap phase 2** (home health devices).
+Implements FR-CFG-1..FR-CFG-6 and NFR-CFG-1..NFR-CFG-6.
+
+- Added: `config.yaml` configuration source, a permanent tier of the precedence
+  chain wired into `Settings` via `settings_customise_sources` in `config.py`;
+  the file on disk is optional (absent = silent no-op, like a missing `.env`) and
+  YAML keys are `Settings` **field names** (`hr_min`, `timezone`, ...), not
+  `VOF_`-prefixed. `extra = "forbid"` still rejects unknown keys from any source,
+  so an unknown YAML key or malformed/non-mapping YAML fails loudly at startup
+  (FR-CFG-1, FR-CFG-2, FR-CFG-3)
+- Added: `DEFAULT_CONFIG_PATH` module constant in `config.py` (`config.yaml` at the
+  working directory / repo root) threaded into the YAML source
+- Precedence, highest to lowest: **CLI args → environment (incl. `.env`) →
+  `config.yaml` → built-in defaults**, applied per key; env (and `.env`) stay
+  authoritative over YAML and CLI args stay authoritative over both, generalizing
+  the existing `--adapter` override (FR-CFG-2)
+- Added: `--config PATH` flag in `cli.py` selecting which file the `config.yaml`
+  tier reads (default `config.yaml` at repo root, resolved via an early
+  `parse_known_args` pass before `Settings` is built). An explicitly supplied
+  `--config` path that does not exist **fails loud** at startup naming the path;
+  a missing *default* file stays a silent no-op. No `VOF_CONFIG_FILE` env var is
+  added (FR-CFG-6)
+- Added: `timezone` / `VOF_TIMEZONE` setting (default `local`) in `config.py`,
+  with a `resolve_timezone(name) -> ZoneInfo | None` stdlib-`zoneinfo` helper and
+  a `field_validator` so an unresolvable zone fails at `Settings()` construction
+  naming the value. `local` preserves today's host-local behavior (FR-CFG-4)
+- Changed: `adapters/datetime_field.py` — `decode_timestamp` gains an additive,
+  keyword-defaulted `tz: tzinfo | None = None` parameter. `tz=None` keeps the
+  prior `naive.astimezone()` host-local result byte-for-byte; a non-`None` `tz`
+  interprets the zoneless device wall-clock **as being in** that zone via
+  `naive.replace(tzinfo=tz)`. `TIMESTAMP_SIZE` and the `__all__` surface are
+  unchanged (FR-CFG-4, NFR-CFG-1)
+- Changed: `BloodPressureMeasurementParser`, `TemperatureMeasurementParser`,
+  `WeightMeasurementParser` and their `BloodPressureBleAdapter`,
+  `HealthThermometerBleAdapter`, `WeightScaleBleAdapter` thread an optional
+  keyword `tz` through to `decode_timestamp`; `cli.py` resolves the `tzinfo` once
+  via `resolve_timezone(settings.timezone)` and passes it when building adapters.
+  The no-device-timestamp `now()` fallback and the heart-rate / PLX parsers (no
+  device timestamp) are untouched (FR-CFG-4, NFR-CFG-1)
+- Changed: `pyproject.toml` — `pyyaml` promoted to a pinned direct dependency
+  (previously transitive via `uvicorn[standard]`), needed by
+  `YamlConfigSettingsSource` (NFR-CFG-4)
+- Added: committed `config.yaml.example` (SPDX header as a YAML comment) listing
+  the YAML-expressible settings by field name and documenting the precedence
+  order, the `--config` flag, and the `timezone` key. It **omits `api_token`** and
+  notes the token belongs in `.env`/env — a documentation convention, not a code
+  guardrail (FR-CFG-5)
+- Added: `config.yaml` to `.gitignore` so a populated runtime config is not
+  committed, mirroring how `.env` is ignored while `.env.example` is tracked; and
+  `VOF_TIMEZONE=local` to `.env.example` with a comment on its default and override
+  (FR-CFG-5)
+- No secret guardrails in code and no catch-and-soften: configuration failures
+  (missing `--config` path, unknown key, malformed YAML, invalid `timezone`)
+  propagate and abort startup with their underlying messages. The only secret
+  protection is the pre-existing "never log configuration values" rule, which this
+  slice does not weaken; no new logging of config was added (NFR-CFG-3)
+- Changed: `docs/brief-config-file.md` — the Promotion section now names the
+  `--config PATH` override and the fail-loud, no-secret-guardrail stance, keeps
+  both drivers (length and structure) visible, and cites
+  `docs/brief-validation-modes.md` as independent corroboration that flat
+  `VOF_<VITAL>_<BOUND>` pairs are the wrong *shape* for planned validation-mode
+  work. No EviTrace-ported or third-party code was used, so `NOTICE` is unchanged
+  (NFR-CFG-4, NFR-CFG-6)
+
+## [2026-09-23] — Body weight (spec/weight-body-mass)
+
+Implements the fourth and final phase-2 slice: acquiring body weight over the
+standard Bluetooth Weight Scale Service (WSS) Weight Measurement characteristic
+(`0x2A9D`, indication-based) and representing it as a US Core Body Weight
+Observation. Weight is a single scalar quantity, so it lands as a new
+`ScalarVital` and reuses the existing `ScalarVitalMapper`, `BleConnection`
+lifecycle, `DuplicateValidator`, `SensorContactValidator`, and per-vital-class
+`PlausibleRangeValidator` unchanged — no new mapper code and no new BLE lifecycle.
+Unlike the earlier slices, the weight value is a plain unit-scaled uint16 (not an
+IEEE-11073 SFLOAT/FLOAT), so a dedicated scaling function is added and
+`adapters/sfloat.py` is left untouched; the optional timestamp reuses the shared
+`decode_timestamp` helper unchanged. All additions are additive; no existing
+public ABC or exported name changed. This slice completes the phase-2 vital-sign
+set (blood pressure, oxygen saturation, body temperature, body weight). Implements
+FR-WT-1..FR-WT-9 and NFR-WT-1..NFR-WT-6.
+
+- Added: `vitals/builtin/body_weight.py` — `BodyWeight`, a new concrete
+  `ScalarVital` (US Core Body Weight; LOINC 29463-7; UCUM `kg`; default plausible
+  range `(2.0, 650.0)` kg — physical-plausibility bounds, not clinical
+  thresholds), exported from `vitals/__init__.py` under `# Concrete defaults`
+  (FR-WT-1)
+- Added: `adapters/weight_parser.py` — `WeightMeasurementParser` for GATT
+  `0x2A9D`, with pure `parse_weight_flags`/`required_length`/`scale_weight`
+  helpers and an injectable tz-aware clock. `scale_weight` applies the
+  unit-dependent uint16 resolution (SI `0.005` kg vs Imperial `0.01` lb, then
+  `× 0.45359237` to kilograms) chosen from the flags byte, so the constructed
+  reading is always kilograms. Does **not** use `adapters/sfloat.py` (weight is
+  not a medical FLOAT); reuses the shared `decode_timestamp` for the optional
+  timestamp. The optional user-ID, BMI, and height fields are length-accounted
+  only and never decoded, logged, or stored (FR-WT-2, FR-WT-3, NFR-WT-5)
+- Added: `adapters/builtin/weight_scale_ble.py` — `WeightScaleBleAdapter`,
+  composing the shared `BleConnection` for WSS service `0x181D` / characteristic
+  `0x2A9D` (bleak enables the characteristic's indications transparently, so
+  `BleConnection` is unchanged); `bleak` stays lazily imported inside
+  `BleConnection` only (FR-WT-4, NFR-WT-1)
+- Added: `adapters/builtin/mock.py` — `MockWeightAdapter` and `WeightEmissionMode`
+  (`VALID`, `IMPLAUSIBLE`, `IMPERIAL_SOURCE`), emitting `BodyWeight` (always
+  kilograms); never imports `bleak` (FR-WT-8)
+- Added: `WeightScaleBleAdapter`, `MockWeightAdapter`, and `WeightEmissionMode` to
+  `adapters/__init__.py` under `# Concrete defaults` (FR-WT-4, FR-WT-8)
+- Added: `VOF_WEIGHT_MIN` / `VOF_WEIGHT_MAX` config variables (`Settings.weight_min`
+  = 2.0, `Settings.weight_max` = 650.0) in `config.py` and `.env.example` (FR-WT-6)
+- Changed: `cli.py` — `_resolve_adapter` maps the `weight` and `mock-weight` short
+  names; `_build_orchestrator` adds a `BodyWeight` entry to the
+  `PlausibleRangeValidator` per-vital-class overrides map (no validator code
+  change). Mapper resolution (`BodyWeight → ScalarVitalMapper`) dispatches via the
+  existing MRO registry with no orchestrator change (FR-WT-5, FR-WT-6, FR-WT-8)
+- Added: `docs/protocol-weight-measurement.md` — Bluetooth SIG WSS /
+  Weight Measurement citations, the SI-vs-Imperial scaling trap, the user-ID
+  privacy note, and the `(2.0, 650.0)` kg range rationale (FR-WT-3, NFR-WT-4)
+- Changed: `docs/device-compatibility.md` — added a standard-WSS weight-scale row,
+  and a row noting proprietary-BLE body-composition scales (e.g. RENPHO Elis 1) are
+  not supported here and route through the phase-3 aggregator path (FR-WT-8)
+- Changed: `docs/brief-config-file.md` — added the final phase-2 config-surface
+  checkpoint (the `VOF_*` surface reaches 19; 12 per-vital range keys), closing the
+  phase-2 length-driver assessment with a "not promoted on length" recommendation
+  (FR-WT-9)
 
 ## [2026-09-23] — Body temperature (spec/body-temperature)
 

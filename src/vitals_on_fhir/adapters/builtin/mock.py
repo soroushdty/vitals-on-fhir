@@ -20,6 +20,7 @@ from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
+from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
 from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 
@@ -509,6 +510,119 @@ class MockThermometerAdapter(DeviceAdapter):
         elif self._emission_mode == ThermometerEmissionMode.FAHRENHEIT_SOURCE:
             value = _FAHRENHEIT_SOURCE_CELSIUS
         return BodyTemperature(
+            effective=datetime.now(UTC),
+            device_id=self._device_id(),
+            value=value,
+        )
+
+    def _device_id(self) -> str:
+        """Return the device identifier used for readings from this adapter."""
+        return self.device_info.identifiers["mock"]
+
+
+_VALID_BODY_WEIGHT = 70.0  # kg, comfortably inside the default plausible range
+_IMPLAUSIBLE_BODY_WEIGHT = 900.0  # kg, above the default plausible upper bound
+# 154.323... lb normalizes to 70.0 kg; the mock emits the already-normalized value.
+_IMPERIAL_SOURCE_KILOGRAMS = 70.0  # kg, the kilogram equivalent of an Imperial source
+
+
+class WeightEmissionMode(enum.Enum):
+    """Controls the kind of reading ``MockWeightAdapter`` emits.
+
+    - ``VALID`` — in-range body-weight readings (e.g. 70.0 kg).
+    - ``IMPLAUSIBLE`` — readings above the plausible upper bound (e.g. 900.0 kg).
+    - ``IMPERIAL_SOURCE`` — a reading whose source device reported pounds; the
+      mock emits the already-normalized kilogram equivalent (e.g. 70.0 kg),
+      mirroring the parser, which normalizes pounds to kilograms before
+      constructing the reading. The domain object is always kilograms.
+    """
+
+    VALID = "valid"
+    IMPLAUSIBLE = "implausible"
+    IMPERIAL_SOURCE = "imperial_source"
+
+
+class MockWeightAdapter(DeviceAdapter):
+    """Simulated device adapter that emits synthetic body-weight readings.
+
+    Configurable via ``emission_mode`` to produce valid readings, an out-of-range
+    (implausible) value so the plausible-range validator can be exercised, or a
+    reading whose source device reported pounds — emitted as the already-
+    normalized kilogram equivalent, since a ``BodyWeight`` is always kilograms.
+    An optional ``count`` bounds how many readings are yielded (``None`` yields
+    indefinitely until disconnected). Never imports ``bleak``.
+    """
+
+    supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (BodyWeight,)
+
+    def __init__(
+        self,
+        emission_mode: WeightEmissionMode = WeightEmissionMode.VALID,
+        *,
+        interval: float = _DEFAULT_INTERVAL,
+        count: int | None = None,
+    ) -> None:
+        """Create a mock weight-scale adapter.
+
+        Args:
+            emission_mode: Which kind of reading to emit; drives the
+                plausible-range validator branch and the Imperial-source path
+                under test.
+            interval: Seconds to sleep between yielded readings.
+            count: Maximum number of readings to yield, or ``None`` to yield
+                indefinitely until ``disconnect`` is called.
+        """
+        self._emission_mode = emission_mode
+        self._interval = interval
+        self._count = count
+        self._state = ConnectionState.DISCONNECTED
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return a synthetic ``DeviceInfo`` for the mock weight-scale device."""
+        return DeviceInfo(
+            manufacturer="vitals-on-fhir",
+            model="Mock Weight",
+            identifiers={"mock": "weight-1"},
+        )
+
+    @property
+    def state(self) -> ConnectionState:
+        """Return the current simulated connection state."""
+        return self._state
+
+    async def connect(self) -> None:
+        """Simulate connecting to the mock device (``CONNECTING`` then ``CONNECTED``)."""
+        self._state = ConnectionState.CONNECTING
+        self._state = ConnectionState.CONNECTED
+
+    async def disconnect(self) -> None:
+        """Simulate disconnecting from the mock device."""
+        self._state = ConnectionState.DISCONNECTED
+
+    async def vitals(self) -> AsyncIterator[VitalSign]:
+        """Yield simulated ``BodyWeight`` readings per the configured mode.
+
+        Each reading carries a timezone-aware ``effective`` timestamp. Yields
+        until ``count`` readings have been produced, or indefinitely while
+        connected when ``count`` is ``None``.
+        """
+        emitted = 0
+        while self._state == ConnectionState.CONNECTED:
+            if self._count is not None and emitted >= self._count:
+                return
+            yield self._make_reading()
+            emitted += 1
+            await asyncio.sleep(self._interval)
+
+    def _make_reading(self) -> BodyWeight:
+        """Build a single ``BodyWeight`` reading for the configured mode."""
+        value = _VALID_BODY_WEIGHT
+        if self._emission_mode == WeightEmissionMode.IMPLAUSIBLE:
+            value = _IMPLAUSIBLE_BODY_WEIGHT
+        elif self._emission_mode == WeightEmissionMode.IMPERIAL_SOURCE:
+            value = _IMPERIAL_SOURCE_KILOGRAMS
+        return BodyWeight(
             effective=datetime.now(UTC),
             device_id=self._device_id(),
             value=value,

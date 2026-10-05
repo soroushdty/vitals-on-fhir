@@ -27,7 +27,7 @@ from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from datetime import datetime, tzinfo
 
 #: GATT UUID of the Health Thermometer Service (0x1809), used to filter advertisements.
 HEALTH_THERMOMETER_SERVICE_UUID = "00001809-0000-1000-8000-00805f9b34fb"
@@ -54,6 +54,7 @@ class HealthThermometerBleAdapter(DeviceAdapter):
         device_name: str | None = None,
         on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
         now: Callable[[], datetime] | None = None,
+        tz: tzinfo | None = None,
     ) -> None:
         """Initialize the adapter, composing a Health Thermometer Service lifecycle.
 
@@ -66,8 +67,12 @@ class HealthThermometerBleAdapter(DeviceAdapter):
                 dashboard.
             now: Optional clock returning a timezone-aware timestamp, forwarded
                 to the parser for readings that carry no embedded timestamp.
+            tz: Optional timezone in which to interpret a device-supplied zoneless
+                timestamp, forwarded to the parser. ``None`` preserves host-local
+                behavior.
         """
         self._now = now
+        self._tz = tz
         self._connection = BleConnection(
             service_uuid=HEALTH_THERMOMETER_SERVICE_UUID,
             characteristic_uuid=TEMPERATURE_MEASUREMENT_UUID,
@@ -127,4 +132,5 @@ class HealthThermometerBleAdapter(DeviceAdapter):
         return TemperatureMeasurementParser(
             device_id=self.device_info.identifiers["profile"],
             now=self._now,
+            tz=self._tz,
         )

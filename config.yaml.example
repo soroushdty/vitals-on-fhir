@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# vitals-on-fhir — example config.yaml
+#
+# Copy to config.yaml and edit. Never commit a populated config.yaml (it is
+# git-ignored, just like .env). The config.yaml layer is always present in the
+# precedence chain; when no file exists on disk it simply contributes nothing.
+#
+# Configuration precedence, highest to lowest:
+#
+#   1. command-line arguments (e.g. --adapter)
+#   2. environment variables (VOF_ prefix) and .env
+#   3. this config.yaml
+#   4. built-in defaults
+#
+# A value set by a higher source wins for that key; keys absent from higher
+# sources fall through to this file, then to the defaults.
+#
+# Keys here are Settings FIELD NAMES (hr_min, host, timezone, ...), NOT the
+# VOF_-prefixed environment-variable names. Unknown keys are rejected at startup.
+#
+# The config file location defaults to config.yaml at the repository root
+# (the process working directory). Override it with:
+#
+#   uv run vitals-on-fhir --config /path/to/config.yaml
+#
+# An explicit --config path that does not exist fails loudly at startup; a
+# missing default config.yaml is a silent no-op.
+#
+# NOTE: the API token is intentionally omitted from this file. Keep the token
+# in .env / the environment (VOF_API_TOKEN), never in config.yaml. This is a
+# documentation convention, not a code guardrail — putting it here would work,
+# but don't: config.yaml is meant to be shareable and the token is a secret.
+
+# Network
+# host: 127.0.0.1        # bind address (loopback only by default, for security)
+# port: 8000             # HTTP port
+
+# Device
+# adapter: mock          # mock | miband10 | package.module.ClassName
+# device_name:           # optional BLE device name filter (omit to connect to first match)
+
+# Mock adapter (--adapter mock): the simulated heart rate wanders between these
+# bounds (bpm), one reading every mock_interval seconds.
+# mock_hr_min: 40
+# mock_hr_max: 100
+# mock_interval: 1.0
+
+# Device-timestamp interpretation.
+#   "local" (default) — interpret a device's zoneless timestamp as host local
+#                       time and return it timezone-aware (today's behaviour).
+#   an explicit zone  — e.g. "UTC" or an IANA name like "America/Phoenix";
+#                       interprets the device's zoneless timestamp as being in
+#                       that zone. An unresolvable value fails at startup.
+# timezone: local
+
+# Validation bounds — heart rate (bpm)
+# hr_min: 20
+# hr_max: 250
+
+# Validation bounds — blood pressure components (mmHg)
+# bp_systolic_min: 50
+# bp_systolic_max: 250
+# bp_diastolic_min: 30
+# bp_diastolic_max: 150
+
+# Validation bounds — oxygen saturation (%)
+# spo2_min: 70
+# spo2_max: 100
+
+# Validation bounds — body temperature (Cel); physical-plausibility, not clinical
+# temp_min: 10
+# temp_max: 47
+
+# Validation bounds — body weight (kg); physical-plausibility, not clinical
+# weight_min: 2
+# weight_max: 650
+
+# Storage
+# patient_id: local-patient   # synthetic local patient identifier, not a real patient ID
+# store_max: 10000            # maximum Observations kept in memory

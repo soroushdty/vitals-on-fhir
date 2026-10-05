@@ -8,11 +8,13 @@ process environment variables must take precedence over the file.
 
 import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from vitals_on_fhir.config import Settings
+from vitals_on_fhir.config import Settings, resolve_timezone
 
 
 @pytest.fixture(autouse=True)
@@ -187,6 +189,37 @@ def test_temp_bounds_load_from_env_file(
     assert settings.temp_max == 45.0
 
 
+def test_weight_bounds_default_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``VOF_WEIGHT_*`` bounds fall back to their declared defaults when unset."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.weight_min == 2.0
+    assert settings.weight_max == 650.0
+
+
+def test_weight_bounds_load_from_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_WEIGHT_*`` values in ``.env`` override the defaults."""
+    _write_env(
+        tmp_path,
+        "VOF_API_TOKEN=test-token-do-not-use\n"
+        "VOF_WEIGHT_MIN=3\n"
+        "VOF_WEIGHT_MAX=500\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()  # type: ignore[call-arg]
+
+    assert settings.weight_min == 3.0
+    assert settings.weight_max == 500.0
+
+
 def test_unknown_vof_variable_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -201,70 +234,181 @@ def test_unknown_vof_variable_is_rejected(
         Settings()  # type: ignore[call-arg]
 
 
-# --- YAML config file ------------------------------------------------------
+# --- config.yaml source, precedence, and timezone (spec/config-file, Task 1.1) ---
 
 
-def _write_yaml(directory: Path, contents: str) -> Path:
-    """Write ``config.yaml`` into ``directory`` and return its path."""
-    path = directory / "config.yaml"
-    path.write_text(contents, encoding="utf-8")
-    return path
+def _write_yaml(directory: Path, contents: str) -> None:
+    """Write a ``config.yaml`` file into ``directory``."""
+    (directory / "config.yaml").write_text(contents, encoding="utf-8")
 
 
-def test_mock_hr_range_defaults_to_40_100(monkeypatch: pytest.MonkeyPatch) -> None:
-    """With no env or YAML the mock heart rate range is 40-100 bpm."""
-    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+def test_absent_config_file_is_a_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no ``config.yaml`` present, behaviour matches env/default-only.
+
+    The absent file is not an error and contributes no values (FR-CFG-1).
+    """
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
 
     settings = Settings()
 
+    assert settings.hr_min == 20.0
+    assert settings.adapter == "mock"
+    assert settings.timezone == "local"
+
+
+def test_yaml_supplies_value_when_env_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``config.yaml`` value is reflected when the env var is unset (FR-CFG-2)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    _write_yaml(tmp_path, "hr_min: 30\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()
+
+    assert settings.hr_min == 30.0
+
+
+def test_env_beats_yaml_for_same_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An environment variable wins over a conflicting YAML value (FR-CFG-2)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    _write_yaml(tmp_path, "hr_min: 30\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("VOF_HR_MIN", "40")
+
+    settings = Settings()
+
+    assert settings.hr_min == 40.0
+
+
+def test_unknown_yaml_key_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown key in ``config.yaml`` fails at startup naming the key (FR-CFG-3)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    _write_yaml(tmp_path, "bogus: 1\n")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="bogus"):
+        Settings()
+
+
+def test_malformed_yaml_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unparseable ``config.yaml`` fails at startup, not a silent fallback (FR-CFG-3)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    _write_yaml(tmp_path, "hr_min: [unbalanced\n")
+    monkeypatch.chdir(tmp_path)
+
+    # Unparseable YAML surfaces as a parser error whose message names the file.
+    with pytest.raises(yaml.YAMLError, match="config.yaml"):
+        Settings()
+
+
+def test_top_level_list_yaml_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A top-level list (not a mapping) in ``config.yaml`` is rejected (FR-CFG-3)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    _write_yaml(tmp_path, "- one\n- two\n")
+    monkeypatch.chdir(tmp_path)
+
+    # A non-mapping document cannot be merged into the settings; startup fails
+    # loudly rather than silently falling back to defaults.
+    with pytest.raises(ValueError):
+        Settings()
+
+
+def test_timezone_default_is_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``timezone`` setting defaults to ``local`` (FR-CFG-4)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().timezone == "local"
+
+
+def test_valid_explicit_timezone_constructs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A valid explicit zone (``UTC``, ``America/Phoenix``) is accepted (FR-CFG-4)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setenv("VOF_TIMEZONE", "UTC")
+    assert Settings().timezone == "UTC"
+
+    monkeypatch.setenv("VOF_TIMEZONE", "America/Phoenix")
+    assert Settings().timezone == "America/Phoenix"
+
+
+def test_invalid_timezone_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unresolvable ``timezone`` fails at startup naming the value (FR-CFG-4)."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("VOF_TIMEZONE", "Mars/Olympus")
+
+    with pytest.raises(ValueError, match="Mars/Olympus"):
+        Settings()
+
+
+def test_resolve_timezone_local_returns_none() -> None:
+    """``resolve_timezone("local")`` signals host-local with ``None`` (FR-CFG-4)."""
+    assert resolve_timezone("local") is None
+
+
+def test_resolve_timezone_named_returns_zoneinfo() -> None:
+    """``resolve_timezone("UTC")`` returns a ``ZoneInfo`` (FR-CFG-4)."""
+    resolved = resolve_timezone("UTC")
+    assert isinstance(resolved, ZoneInfo)
+    assert resolved == ZoneInfo("UTC")
+
+
+# --- Mock heart-rate range --------------------------------------------------
+
+
+def test_mock_hr_range_defaults_to_40_100(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no env or YAML the mock heart rate range is 40-100 bpm, one reading a second."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+
+    settings = Settings(_yaml_path=tmp_path / "absent.yaml")
+
     assert (settings.mock_hr_min, settings.mock_hr_max) == (40.0, 100.0)
+    assert settings.mock_interval == 1.0
 
 
-def test_yaml_file_sets_mock_hr_range(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keys in the YAML file override defaults; the token still comes from the env."""
+def test_yaml_sets_mock_hr_range_and_env_overrides_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mock range comes from YAML; an environment variable beats it per key."""
     monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
-    path = _write_yaml(tmp_path, "mock_hr_min: 55\nmock_hr_max: 130\nmock_interval: 0.5\n")
+    path = tmp_path / "config.yaml"
+    path.write_text("mock_hr_min: 55\nmock_hr_max: 130\nmock_interval: 0.5\n", encoding="utf-8")
 
-    settings = Settings(_yaml_path=path)
+    from_yaml = Settings(_yaml_path=path)
+    assert (from_yaml.mock_hr_min, from_yaml.mock_hr_max) == (55.0, 130.0)
+    assert from_yaml.mock_interval == 0.5
 
-    assert (settings.mock_hr_min, settings.mock_hr_max) == (55.0, 130.0)
-    assert settings.mock_interval == 0.5
-
-
-def test_env_overrides_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Environment variables take precedence over the YAML file."""
-    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
     monkeypatch.setenv("VOF_MOCK_HR_MAX", "90")
-    path = _write_yaml(tmp_path, "mock_hr_min: 55\nmock_hr_max: 130\n")
-
-    settings = Settings(_yaml_path=path)
-
-    assert (settings.mock_hr_min, settings.mock_hr_max) == (55.0, 90.0)
-
-
-def test_yaml_unknown_key_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A typo in the YAML file fails at startup instead of being ignored."""
-    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
-    path = _write_yaml(tmp_path, "mock_hr_minimum: 55\n")
-
-    with pytest.raises(ValidationError):
-        Settings(_yaml_path=path)
-
-
-def test_empty_yaml_file_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """An empty (or comment-only) YAML file behaves like no file."""
-    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
-    path = _write_yaml(tmp_path, "# nothing set\n")
-
-    assert Settings(_yaml_path=path).mock_hr_min == 40.0
+    overridden = Settings(_yaml_path=path)
+    assert (overridden.mock_hr_min, overridden.mock_hr_max) == (55.0, 90.0)
 
 
 @pytest.mark.parametrize("low, high", [(100, 40), (70, 70)])
 def test_mock_hr_range_must_be_increasing(
-    low: float, high: float, monkeypatch: pytest.MonkeyPatch
+    low: float, high: float, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``mock_hr_min`` must be strictly below ``mock_hr_max``."""
     monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
 
     with pytest.raises(ValidationError):
-        Settings(mock_hr_min=low, mock_hr_max=high)
+        Settings(_yaml_path=tmp_path / "absent.yaml", mock_hr_min=low, mock_hr_max=high)

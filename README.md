@@ -62,7 +62,7 @@ See [docs/fhir-api.md](docs/fhir-api.md) for the full endpoint reference and an 
 
 ## Configuration
 
-Configuration comes from environment variables (or `.env`), plus an optional YAML file: copy `config.example.yaml` to `config.yaml` (picked up from the working directory) or pass `--config path/to/file.yaml`. YAML keys are the variable names in lowercase without the `VOF_` prefix, and environment variables win over the file. Unknown `VOF_*` variables and unknown YAML keys are rejected at startup to catch typos. Keep `VOF_API_TOKEN` in the environment or `.env`, not in the YAML file.
+Configuration comes from environment variables (or `.env`), plus an optional YAML file: copy `config.yaml.example` to `config.yaml` (picked up from the working directory) or pass `--config path/to/file.yaml`. YAML keys are the variable names in lowercase without the `VOF_` prefix, and environment variables win over the file. Unknown `VOF_*` variables and unknown YAML keys are rejected at startup to catch typos. Keep `VOF_API_TOKEN` in the environment or `.env`, not in the YAML file.
 
 | Variable | Default | Description |
 |---|---|---|

@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Typed application settings loaded from environment variables and an optional YAML file.
+"""Typed application settings loaded from environment variables and YAML.
 
 All configuration is loaded once at startup (in ``cli.py``) and passed
 explicitly to every component that needs it.  No module-level global config
 object; no mutation after startup.
 
-Environment variables use the ``VOF_`` prefix.  An optional YAML file (see
-``config.example.yaml``) may supply the same keys without the prefix, in
-lowercase.  Precedence, highest first: process environment, ``.env``, YAML
-file, field defaults.  Unknown ``VOF_*`` variables and unknown YAML keys are
-rejected at startup (``extra = "forbid"``).  Secrets (``api_token``) belong in
-the environment or ``.env``, never in a committed YAML file.
+Configuration sources, highest priority first:
+
+1. constructor keyword arguments (``init``),
+2. environment variables (the ``VOF_`` prefix),
+3. a ``.env`` file (same ``VOF_`` prefix),
+4. a ``config.yaml`` file whose keys are :class:`Settings` field names
+   (``hr_min``, ``timezone``, ...), *not* ``VOF_``-prefixed,
+5. the built-in field defaults.
+
+The ``config.yaml`` tier is always part of the precedence chain; when the file
+is absent it simply contributes nothing (a no-op), exactly as ``.env`` does when
+no ``.env`` file exists.  Unknown keys from any source are rejected at startup
+(``extra = "forbid"``).
 """
 
-from __future__ import annotations
-
-from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -27,14 +32,28 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-# The YAML path is only known per instantiation, but pydantic-settings resolves
-# its sources on the class.  ``Settings.__init__`` publishes the path here for
-# the duration of the call so ``settings_customise_sources`` can read it.
-_YAML_PATH: ContextVar[Path | None] = ContextVar("_YAML_PATH", default=None)
+DEFAULT_CONFIG_PATH = Path("config.yaml")
+"""Default ``config.yaml`` location: the process working directory (repo root)."""
+
+
+def resolve_timezone(name: str) -> ZoneInfo | None:
+    """Resolve a ``timezone`` setting to a ``tzinfo``, or ``None`` for host-local.
+
+    ``"local"`` returns ``None`` (signalling "use the host's local zone", the
+    default behaviour).  Any other value is treated as an IANA zone name (e.g.
+    ``"UTC"`` or ``"America/Phoenix"``) and resolved to a :class:`zoneinfo.ZoneInfo`.
+    An unresolvable value raises :class:`ValueError` naming the offending value.
+    """
+    if name == "local":
+        return None
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError(f"Invalid timezone setting: {name!r}") from exc
 
 
 class Settings(BaseSettings):
-    """Application settings sourced from the environment (``VOF_`` prefix) and YAML.
+    """Application settings sourced from CLI init, env (``VOF_`` prefix), and YAML.
 
     Instantiate once in ``cli.py`` and pass to components explicitly.
     Never log the ``api_token`` field at any level.
@@ -82,24 +101,40 @@ class Settings(BaseSettings):
     temp_min: float = 10.0
     temp_max: float = 47.0
 
+    # Validation bounds — body weight (kg); physical-plausibility, not clinical
+    weight_min: float = 2.0
+    weight_max: float = 650.0
+
     # Storage
     patient_id: str = "local-patient"
     store_max: int = 10000
 
-    def __init__(self, *, _yaml_path: Path | None = None, **kwargs: Any) -> None:
-        """Load settings, optionally layering in the YAML file at *_yaml_path*.
+    # Device-timestamp interpretation (FR-CFG-4).
+    # "local" preserves today's host-local behaviour; an explicit zone name
+    # (e.g. "UTC" or "America/Phoenix") interprets a device's zoneless
+    # timestamp as being in that zone.
+    timezone: str = "local"
 
-        Args:
-            _yaml_path: Path to a YAML config file, or ``None`` for none.  The
-                file is lower-precedence than environment variables and ``.env``.
-            **kwargs: Explicit field values (highest precedence), as for any
-                ``BaseSettings``.
+    # Runtime ``config.yaml`` path, chosen by the composition root and threaded
+    # into the YAML source below.  Not a settings field; carried on the class so
+    # the ``settings_customise_sources`` classmethod can read it.
+    _yaml_path: Path = DEFAULT_CONFIG_PATH
+
+    def __init__(self, _yaml_path: Path | str = DEFAULT_CONFIG_PATH, **kwargs: Any) -> None:
+        """Construct settings, reading YAML from ``_yaml_path`` (default ``config.yaml``).
+
+        ``_yaml_path`` selects which file the YAML tier reads; it is not itself a
+        settings field.  When the file is absent the YAML tier contributes nothing.
         """
-        token = _YAML_PATH.set(_yaml_path)
-        try:
-            super().__init__(**kwargs)
-        finally:
-            _YAML_PATH.reset(token)
+        type(self)._yaml_path = Path(_yaml_path)
+        super().__init__(**kwargs)
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str) -> str:
+        """Fail at construction if ``timezone`` is neither ``local`` nor resolvable."""
+        resolve_timezone(value)
+        return value
 
     @classmethod
     def settings_customise_sources(
@@ -110,13 +145,17 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Order the sources: init, environment, ``.env``, YAML file, secrets."""
-        sources: list[PydanticBaseSettingsSource] = [init_settings, env_settings, dotenv_settings]
-        yaml_path = _YAML_PATH.get()
-        if yaml_path is not None:
-            sources.append(YamlConfigSettingsSource(settings_cls, yaml_file=yaml_path))
-        sources.append(file_secret_settings)
-        return tuple(sources)
+        """Order sources so YAML sits below env/dotenv but above field defaults.
+
+        First entry = highest priority: init kwargs > env > ``.env`` >
+        ``config.yaml`` > field defaults (FR-CFG-2).
+        """
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls, yaml_file=cls._yaml_path),
+        )
 
     @model_validator(mode="after")
     def _check_mock_hr_range(self) -> Self:

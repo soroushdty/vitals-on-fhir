@@ -8,6 +8,8 @@
 | BLE blood-pressure cuffs (standard Blood Pressure Service `0x1810`) | Supported via `BloodPressureBleAdapter` (composes the shared `BleConnection` lifecycle); unverified against specific devices |
 | BLE pulse oximeters (standard Pulse Oximeter Service `0x1822`) | Supported via `PulseOximeterBleAdapter` (composes the shared `BleConnection` lifecycle); unverified against specific devices |
 | BLE thermometers (standard Health Thermometer Service `0x1809`) | Supported via `HealthThermometerBleAdapter` (composes the shared `BleConnection` lifecycle); unverified against specific devices |
+| BLE weight scales (standard Weight Scale Service `0x181D`) | Supported via `WeightScaleBleAdapter` (composes the shared `BleConnection` lifecycle); unverified against specific devices |
+| Consumer body-composition scales using proprietary BLE (e.g. RENPHO Elis 1 and similar bioimpedance scales) | Not supported here: they do not expose the standard Weight Scale Service. Their route is the phase-3 phone-aggregator path (vendor app → Health Connect / Apple Health → aggregator adapter); see `docs/roadmap.md` |
 | Apple Watch, Oura, most Wear OS watches | Not supported: no native open real-time channel |
 
 Please report devices you've tested, or contribute your adapter, via an issue.
