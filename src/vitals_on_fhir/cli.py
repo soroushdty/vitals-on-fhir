@@ -148,8 +148,9 @@ def _resolve_adapter(
             timestamp, forwarded to the three timestamp-decoding BLE adapters
             (``bp``, ``temp``, ``weight``).  ``None`` preserves host-local
             behavior (FR-CFG-4, design §4).
-        on_state_change: Coroutine the ``mock`` adapter calls on every simulated
-            connection-state change (e.g. a dropout), so the dashboard can show it.
+        on_state_change: Coroutine the ``mock`` adapter and the built-in BLE
+            adapters call on every connection-state change (including a dropout
+            and the automatic reconnect), so the dashboard can show it.
         on_restart: Coroutine the ``mock`` adapter calls when a scenario is
             started from the dashboard, to clear what the previous run left behind.
 
@@ -171,19 +172,27 @@ def _resolve_adapter(
     if adapter_spec == "mock-bp":
         return MockBloodPressureAdapter()
     if adapter_spec == "miband10":
-        return MiBand10Adapter(device_name=settings.device_name)
+        return MiBand10Adapter(device_name=settings.device_name, on_state_change=on_state_change)
     if adapter_spec == "bp":
-        return BloodPressureBleAdapter(device_name=settings.device_name, tz=tz)
+        return BloodPressureBleAdapter(
+            device_name=settings.device_name, tz=tz, on_state_change=on_state_change
+        )
     if adapter_spec == "spo2":
-        return PulseOximeterBleAdapter(device_name=settings.device_name)
+        return PulseOximeterBleAdapter(
+            device_name=settings.device_name, on_state_change=on_state_change
+        )
     if adapter_spec == "mock-spo2":
         return MockOximeterAdapter()
     if adapter_spec == "temp":
-        return HealthThermometerBleAdapter(device_name=settings.device_name, tz=tz)
+        return HealthThermometerBleAdapter(
+            device_name=settings.device_name, tz=tz, on_state_change=on_state_change
+        )
     if adapter_spec == "mock-temp":
         return MockThermometerAdapter()
     if adapter_spec == "weight":
-        return WeightScaleBleAdapter(device_name=settings.device_name, tz=tz)
+        return WeightScaleBleAdapter(
+            device_name=settings.device_name, tz=tz, on_state_change=on_state_change
+        )
     if adapter_spec == "mock-weight":
         return MockWeightAdapter()
 
@@ -301,8 +310,9 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     tz = resolve_timezone(settings.timezone)
     broadcaster = DashboardBroadcaster()
     store = InMemoryObservationStore(settings.store_max)
-    # The mock reports simulated dropouts through ``on_state_change``, as BLE
-    # adapters do, and clears the previous run through ``on_restart``.
+    # Adapters report every connection-state change (a dropout, the automatic
+    # reconnect) through ``on_state_change`` so the dashboard can show it; the
+    # mock also clears the previous run through ``on_restart``.
     adapter = _resolve_adapter(
         adapter_spec,
         settings,
