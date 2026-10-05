@@ -24,8 +24,11 @@ Responsibilities (design §11):
    :class:`~vitals_on_fhir.pipeline.Orchestrator` with both as sinks and the
    broadcaster's ``on_state_change`` as the state relay.
 6. Build the FastAPI app via :func:`~vitals_on_fhir.api.create_app`, injecting
-   the store, a :class:`~vitals_on_fhir.api.StaticTokenAuthenticator`, the
-   broadcaster, and the startup resources.
+   the store, the authenticator, the broadcaster, and the startup resources.
+   The authenticator is a :class:`~vitals_on_fhir.api.StaticTokenAuthenticator`
+   when ``VOF_API_TOKEN`` is set; without one, demo mode (on by default) runs a
+   mock adapter with an :class:`~vitals_on_fhir.api.AnonymousAuthenticator`,
+   and a real device refuses to start.
 7. Run the uvicorn server and the orchestrator concurrently inside a single
    ``asyncio.run`` (FR-7, FR-ORCH).
 """
@@ -35,6 +38,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import importlib
+import ipaddress
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import tzinfo
@@ -60,7 +64,12 @@ from vitals_on_fhir.adapters import (
     PulseOximeterBleAdapter,
     WeightScaleBleAdapter,
 )
-from vitals_on_fhir.api import StaticTokenAuthenticator, create_app
+from vitals_on_fhir.api import (
+    AnonymousAuthenticator,
+    Authenticator,
+    StaticTokenAuthenticator,
+    create_app,
+)
 from vitals_on_fhir.api.app import BroadcasterLike
 from vitals_on_fhir.config import DEFAULT_CONFIG_PATH, Settings, resolve_timezone
 from vitals_on_fhir.dashboard import DashboardBroadcaster
@@ -88,6 +97,9 @@ logger = logging.getLogger(__name__)
 #: ``dashboard`` package.  ``cli.py`` is permitted to import from every package,
 #: so importing the module here to locate its assets is allowed.
 _STATIC_DIR = Path(_dashboard.__file__).parent / "static"
+
+#: Adapter short names that produce simulated data, the only ones demo mode runs.
+_MOCK_ADAPTERS = frozenset({"mock", "mock-bp", "mock-spo2", "mock-temp", "mock-weight"})
 
 
 def _resolve_config_path(argv: list[str] | None = None) -> Path:
@@ -224,6 +236,67 @@ def _resolve_adapter(
     return adapter_class()
 
 
+def _build_authenticator(
+    settings: Settings, adapter_spec: str, *, demo_mode: bool
+) -> Authenticator:
+    """Choose how API and dashboard requests are authenticated.
+
+    A configured ``VOF_API_TOKEN`` is always used.  Without one, demo mode lets
+    a mock adapter run with authentication off, since its data is simulated;
+    a real device without a token is refused rather than quietly replaced by
+    the mock, so nobody mistakes simulated readings for real ones.
+
+    Args:
+        settings: The loaded application settings.
+        adapter_spec: The adapter short name or fully qualified class path.
+        demo_mode: The resolved demo-mode switch (``--demo``/``--no-demo`` or
+            ``settings.demo_mode``).
+
+    Returns:
+        A :class:`StaticTokenAuthenticator` for the configured token, or an
+        :class:`AnonymousAuthenticator` in demo mode.
+
+    Raises:
+        ValueError: If there is no token and either demo mode is off or the
+            adapter is not a mock.  The message names the fix, never a token.
+    """
+    if settings.api_token is not None:
+        return StaticTokenAuthenticator(settings.api_token)
+    if not demo_mode:
+        raise ValueError(
+            "VOF_API_TOKEN is not set and demo mode is off. Set VOF_API_TOKEN, "
+            "or turn demo mode on (--demo) to run the mock adapter without a token."
+        )
+    if adapter_spec not in _MOCK_ADAPTERS:
+        raise ValueError(
+            f"Adapter '{adapter_spec}' reads a real device and requires VOF_API_TOKEN. "
+            "Set VOF_API_TOKEN, or use a mock adapter to run in demo mode."
+        )
+    return AnonymousAuthenticator()
+
+
+def _warn_demo_mode(host: str) -> None:
+    """Say at startup that demo mode has authentication switched off.
+
+    Adds a second warning when *host* is not a loopback address, because then
+    anyone who can reach it can open the dashboard and change the scenario.
+    """
+    logger.warning(
+        "Demo mode: VOF_API_TOKEN is not set, so the API and dashboard need no "
+        "token and only simulated data is served. Set VOF_API_TOKEN to use a real device."
+    )
+    try:
+        loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    if not loopback:
+        logger.warning(
+            "Demo mode is listening on %s: anyone who can reach this address can "
+            "view the dashboard and change the simulated scenario.",
+            host,
+        )
+
+
 def _restart_hook(
     store: InMemoryObservationStore, broadcaster: DashboardBroadcaster
 ) -> Callable[[], Awaitable[None]]:
@@ -291,7 +364,7 @@ def _build_orchestrator(
     )
 
 
-async def _run(settings: Settings, adapter_spec: str) -> None:
+async def _run(settings: Settings, adapter_spec: str, authenticator: Authenticator) -> None:
     """Wire every component and run serving + acquisition concurrently.
 
     Builds the adapter, startup FHIR resources, store, broadcaster,
@@ -304,6 +377,7 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     Args:
         settings: The loaded application settings.
         adapter_spec: The adapter short name or fully qualified class path.
+        authenticator: The authenticator from :func:`_build_authenticator`.
     """
     # Resolve the configured zone once at startup; threaded to the three
     # timestamp-decoding BLE adapters (FR-CFG-4, design §4).
@@ -338,7 +412,7 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
 
     app = create_app(
         store=store,
-        authenticator=StaticTokenAuthenticator(settings.api_token),
+        authenticator=authenticator,
         # ``api`` cannot import ``dashboard`` (dependency-direction rules), so it
         # declares a wider ``BroadcasterLike`` (register/unregister take ``object``).
         # ``DashboardBroadcaster`` narrows those parameters to ``WebSocketLike``;
@@ -358,6 +432,8 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     )
 
     logger.info("Starting vitals-on-fhir on %s:%d", settings.host, settings.port)
+    if not authenticator.requires_credentials:
+        _warn_demo_mode(settings.host)
 
     async def _acquire() -> None:
         """Run the acquisition pipeline, logging failures at the boundary."""
@@ -375,7 +451,9 @@ def main() -> None:
     """Start the vitals-on-fhir service.
 
     Loads :class:`~vitals_on_fhir.config.Settings` from the environment, parses
-    ``--adapter`` (defaulting to the configured adapter), and hands off to
+    ``--adapter`` and ``--demo`` (defaulting to the configured values), chooses
+    the authenticator (exiting with a usage error when a token is required but
+    missing), and hands off to
     :func:`_run` inside a single ``asyncio.run`` — the only ``asyncio.run``
     call in the codebase.  Configuration values (including ``VOF_API_TOKEN``)
     are never logged (NFR-5).
@@ -409,6 +487,20 @@ def main() -> None:
             "fully qualified 'package.module.ClassName'."
         ),
     )
+    parser.add_argument(
+        "--demo",
+        action=argparse.BooleanOptionalAction,
+        default=settings.demo_mode,
+        help=(
+            "With no VOF_API_TOKEN, run a mock adapter without authentication "
+            "(default: on). --no-demo makes a missing token a startup error."
+        ),
+    )
     args = parser.parse_args()
 
-    asyncio.run(_run(settings, args.adapter))
+    try:
+        authenticator = _build_authenticator(settings, args.adapter, demo_mode=args.demo)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    asyncio.run(_run(settings, args.adapter, authenticator))

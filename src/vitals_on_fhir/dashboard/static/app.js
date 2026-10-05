@@ -22,6 +22,9 @@
  *
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
+ *
+ * On load the page asks GET /status whether a token is needed. In demo mode
+ * (no token set on the server) it hides the token form and connects at once.
  */
 
 (function () {
@@ -58,11 +61,13 @@
   var reconnectTimer = null;
   var manualClose = false;
   var currentToken = "";
+  var authRequired = true; // false in demo mode (see GET /status)
 
   var els = {};
 
   function cacheElements() {
     els.form = document.getElementById("connect-form");
+    els.demoNote = document.getElementById("demo-note");
     els.tokenInput = document.getElementById("token-input");
     els.connectButton = document.getElementById("connect-button");
     els.hrValue = document.getElementById("hr-value");
@@ -331,7 +336,7 @@
   }
 
   function authHeaders(extra) {
-    var headers = { Authorization: "Bearer " + currentToken };
+    var headers = currentToken ? { Authorization: "Bearer " + currentToken } : {};
     for (var key in extra) {
       headers[key] = extra[key];
     }
@@ -430,13 +435,8 @@
 
   function buildWebSocketUrl(token) {
     var scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return (
-      scheme +
-      "//" +
-      window.location.host +
-      "/ws?token=" +
-      encodeURIComponent(token)
-    );
+    var query = token ? "?token=" + encodeURIComponent(token) : "";
+    return scheme + "//" + window.location.host + "/ws" + query;
   }
 
   function scheduleReconnect() {
@@ -451,7 +451,7 @@
   }
 
   function openSocket(token) {
-    if (!token) {
+    if (!token && authRequired) {
       return;
     }
     manualClose = false;
@@ -515,12 +515,39 @@
     loadScenarios();
   }
 
+  // Demo mode: the server needs no token, so skip the prompt and connect now.
+  function startDemo() {
+    authRequired = false;
+    els.form.hidden = true;
+    els.demoNote.hidden = false;
+    openSocket("");
+    loadScenarios();
+  }
+
+  // Ask the server whether a token is needed. If it cannot say, keep the
+  // token prompt, which works either way.
+  function checkAuthRequired() {
+    fetch("/status")
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (data) {
+        if (data && data.auth_required === false) {
+          startDemo();
+        }
+      })
+      .catch(function () {
+        /* keep the token prompt */
+      });
+  }
+
   function init() {
     cacheElements();
     els.form.addEventListener("submit", onSubmit);
     els.simSelect.addEventListener("change", showSelectedDescription);
     els.simStart.addEventListener("click", startScenario);
     drawChart();
+    checkAuthRequired();
     // Slide the window forward between readings (and across disconnects).
     window.setInterval(function () {
       drawChart();

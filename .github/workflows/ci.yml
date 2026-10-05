@@ -1,14 +1,13 @@
 name: CI
 
-# Run once per change: on pull requests, and on pushes to main (after a merge).
-# Triggering on every push as well made each commit on a PR branch run twice
-# (once for the push, once for the pull request).
+# Run on pull requests only. A pull_request run checks the PR merged into
+# main, which is the commit that merging creates, so a second run on the push
+# to main after the merge repeated the same check. Triggering on every push
+# also made each commit on a PR branch run twice.
 on:
-  push:
-    branches: [main]
   pull_request:
 
-# A newer push to the same PR (or to main) makes the older run pointless.
+# A newer push to the same PR makes the older run pointless.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

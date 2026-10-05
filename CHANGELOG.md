@@ -5,6 +5,32 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-05] — Demo mode: run the mock without a token
+
+`VOF_API_TOKEN` is now optional. Without it the service starts in demo mode: a mock adapter
+runs with authentication off, so a first run needs no setup. A real device still requires a
+token, and asking for one without a token stops at startup instead of falling back to
+simulated data.
+
+- Added: `demo_mode` setting (`VOF_DEMO_MODE`, `demo_mode:` in `config.yaml`, CLI
+  `--demo` / `--no-demo`), default on. Off makes a missing token a startup error
+- Added: `AnonymousAuthenticator` in `api` (and `__all__`), and
+  `Authenticator.requires_credentials` (default `True`); with `False` the FHIR routes,
+  `/mock/*` and `/ws` skip the token check
+- Added: public `GET /status` returning `{"auth_required": bool}`; the dashboard hides its token
+  form and connects straight away when it is `false`, showing a "Demo mode" note
+- Added: startup warnings in demo mode, and a second one when `VOF_HOST` is not loopback
+- Changed: `Settings.api_token` is `str | None` (default `None`). An empty `VOF_API_TOKEN=`
+  counts as unset, and so does an empty `VOF_DEVICE_NAME=` (it previously filtered for a
+  device named `""`, so a copied `.env.example` never connected to a real device)
+- Changed: `.env.example` comments out `VOF_API_TOKEN` and adds `VOF_DEMO_MODE`, so an
+  unedited copy gives the built-in defaults; `tests/test_config.py` checks that, and that it
+  lists every setting
+- Changed: steering `product.md` (FR-12, NFR-5), `security-privacy.md`, `tech.md`,
+  `object-model.md`, `structure.md`, `testing.md` describe the demo-mode exception
+- Migration: a `.env` with `VOF_API_TOKEN` set behaves as before. Real-device setups that
+  never set a token already failed to start and still do, now with a clearer message
+
 ## [2026-10-05] — Mock heart-rhythm scenarios and live chart
 
 The `mock` adapter now simulates named heart rhythms that you pick in a dropdown and start with a

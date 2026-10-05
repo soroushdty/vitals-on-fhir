@@ -64,10 +64,11 @@ Config is loaded once in `cli.py` (the composition root) via `pydantic-settings`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VOF_API_TOKEN` | *(required)* | Bearer token for all API requests and dashboard WebSocket |
+| `VOF_API_TOKEN` | *(none)* | Bearer token for all API requests and dashboard WebSocket. Required for a real device; without it the service runs in demo mode |
+| `VOF_DEMO_MODE` | `true` | With no token, run a mock adapter without authentication (CLI `--demo` / `--no-demo`). `false` makes a missing token a startup error |
 | `VOF_HOST` | `127.0.0.1` | Bind address |
 | `VOF_PORT` | `8000` | HTTP port |
-| `VOF_ADAPTER` | `mock` | `mock`, `miband10`, or `package.module.ClassName` |
+| `VOF_ADAPTER` | `mock` | `mock`, `mock-bp`, `mock-spo2`, `mock-temp`, `mock-weight`, `miband10`, `bp`, `spo2`, `temp`, `weight`, or `package.module.ClassName` |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter |
 | `VOF_HR_MIN` | `20` | Heart-rate plausibility lower bound (bpm) |
 | `VOF_HR_MAX` | `250` | Heart-rate plausibility upper bound (bpm) |
@@ -76,7 +77,7 @@ Config is loaded once in `cli.py` (the composition root) via `pydantic-settings`
 
 Rules:
 - Unknown `VOF_*` variables are rejected at startup (pydantic-settings `extra = "forbid"`).
-- Provide a `.env.example` listing every variable with a comment; never commit a populated `.env`.
+- Provide a `.env.example` listing every variable with a comment; never commit a populated `.env`. An unedited copy of `.env.example` must give the built-in defaults (demo mode); `tests/test_config.py` checks both.
 - `VOF_API_TOKEN` must never appear in logs at any level.
 
 ## Async conventions

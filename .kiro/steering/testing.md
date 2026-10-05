@@ -118,6 +118,7 @@ In `tests/api/`, include at minimum:
 - Request with correct token → 200 (or appropriate success code)
 - WebSocket upgrade with no token → connection refused or 401
 - WebSocket upgrade with correct token → connection accepted
+- Demo mode (`AnonymousAuthenticator`): requests and WebSocket upgrades without a token are accepted, and `GET /status` reports `auth_required: false`
 
 Use `httpx.AsyncClient` with FastAPI's `TestClient` or `AsyncClient`; do not start a live server.
 

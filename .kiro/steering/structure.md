@@ -46,7 +46,7 @@ vitals-on-fhir/
 │       │   └── memory.py        # InMemoryObservationStore (also an ObservationSink)
 │       ├── api/                 # FastAPI routes, Authenticator ABC
 │       │   ├── __init__.py
-│       │   ├── auth.py          # Authenticator ABC, StaticTokenAuthenticator
+│       │   ├── auth.py          # Authenticator ABC, StaticTokenAuthenticator, AnonymousAuthenticator
 │       │   ├── routes.py        # Route functions (plain async def, DI for store + auth)
 │       │   └── app.py           # FastAPI app factory
 │       ├── dashboard/           # Static assets + DashboardBroadcaster

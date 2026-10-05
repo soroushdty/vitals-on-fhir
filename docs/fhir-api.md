@@ -39,7 +39,7 @@ Each accepted heart-rate measurement becomes an Observation conforming to the [U
 
 ## FHIR API (read-only)
 
-All requests require `Authorization: Bearer <token>`. Responses use `application/fhir+json`, and search results are FHIR `Bundle`s (`type: searchset`).
+All requests require `Authorization: Bearer <token>`, except in demo mode (no `VOF_API_TOKEN` set, mock adapter only), where no token is needed. Responses use `application/fhir+json`, and search results are FHIR `Bundle`s (`type: searchset`).
 
 | Method | Endpoint | Description |
 |---|---|---|

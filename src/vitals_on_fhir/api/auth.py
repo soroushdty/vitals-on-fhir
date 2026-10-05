@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Authenticator ABC and StaticTokenAuthenticator.
+"""Authenticator ABC, StaticTokenAuthenticator and AnonymousAuthenticator.
 
 Authentication for all HTTP API requests and WebSocket connections is enforced
 here.  The MVP implementation compares a single static bearer token using
 constant-time comparison so that the secret is not leaked through timing side
-channels.
+channels.  :class:`AnonymousAuthenticator` switches authentication off; the
+composition root uses it only in demo mode, where the data is simulated.
 
 SMART on FHIR is a roadmap item; do not reference or stub it here.
 
@@ -24,7 +25,14 @@ class Authenticator(abc.ABC):
 
     Implementations receive raw credentials (typically a bearer token string)
     and return a boolean indicating whether the credentials are valid.
+
+    Attributes:
+        requires_credentials: ``False`` when requests without any credentials
+            are accepted, so the API skips the token check and the dashboard
+            skips its token prompt.
     """
+
+    requires_credentials: bool = True
 
     @abc.abstractmethod
     def authenticate(self, credentials: str) -> bool:
@@ -67,3 +75,17 @@ class StaticTokenAuthenticator(Authenticator):
             ``True`` if *credentials* equals the configured token.
         """
         return hmac.compare_digest(credentials, self._token)
+
+
+class AnonymousAuthenticator(Authenticator):
+    """Authenticator that accepts every request, with or without credentials.
+
+    Used only in demo mode (no ``VOF_API_TOKEN``, mock adapter), where the
+    service serves simulated data and there is nothing to protect.
+    """
+
+    requires_credentials = False
+
+    def authenticate(self, credentials: str) -> bool:
+        """Return ``True`` for any *credentials*, including an empty string."""
+        return True

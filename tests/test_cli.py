@@ -9,12 +9,18 @@ per-key precedence helpers are unit-tested here (spec/config-file, Task 4.1).
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
-from vitals_on_fhir.cli import _resolve_config_path
+from vitals_on_fhir import cli
+from vitals_on_fhir.api import AnonymousAuthenticator, Authenticator, StaticTokenAuthenticator
+from vitals_on_fhir.cli import _build_authenticator, _resolve_config_path
 from vitals_on_fhir.config import DEFAULT_CONFIG_PATH, Settings
+
+# Synthetic token — never a real credential (security-privacy.md).
+_TOKEN = "test-token-do-not-use"
 
 
 @pytest.fixture(autouse=True)
@@ -133,3 +139,116 @@ def test_config_flag_missing_path_fails_loud(tmp_path: Path) -> None:
 
     with pytest.raises(FileNotFoundError, match="does-not-exist.yaml"):
         _resolve_config_path(["--config", str(missing)])
+
+
+# --- Demo mode: which authenticator a missing token leads to ---
+
+
+@pytest.mark.parametrize("adapter", ["mock", "mock-bp", "mock-spo2", "mock-temp", "mock-weight"])
+def test_no_token_with_a_mock_adapter_runs_in_demo_mode(adapter: str) -> None:
+    """With demo mode on and no token, every mock adapter runs without auth."""
+    authenticator = _build_authenticator(Settings(), adapter, demo_mode=True)
+
+    assert isinstance(authenticator, AnonymousAuthenticator)
+    assert authenticator.requires_credentials is False
+
+
+@pytest.mark.parametrize(
+    "adapter", ["miband10", "bp", "spo2", "temp", "weight", "some_pkg.adapters.Thing"]
+)
+def test_no_token_with_a_real_device_is_refused(adapter: str) -> None:
+    """A real device never falls back to the mock: a missing token is an error."""
+    with pytest.raises(ValueError, match="requires VOF_API_TOKEN"):
+        _build_authenticator(Settings(), adapter, demo_mode=True)
+
+
+def test_no_token_with_demo_mode_off_is_refused() -> None:
+    """``--no-demo`` makes a missing token an error, even for the mock."""
+    with pytest.raises(ValueError, match="demo mode is off"):
+        _build_authenticator(Settings(), "mock", demo_mode=False)
+
+
+@pytest.mark.parametrize("adapter", ["mock", "miband10"])
+@pytest.mark.parametrize("demo_mode", [True, False])
+def test_a_configured_token_is_always_required(adapter: str, demo_mode: bool) -> None:
+    """A set token turns auth on for every adapter, whatever demo mode says."""
+    authenticator = _build_authenticator(
+        Settings(api_token=_TOKEN), adapter, demo_mode=demo_mode
+    )
+
+    assert isinstance(authenticator, StaticTokenAuthenticator)
+    assert authenticator.requires_credentials is True
+    assert authenticator.authenticate(_TOKEN)
+    assert not authenticator.authenticate("")
+
+
+# --- main(): --demo / --no-demo and the startup error ---
+
+
+def _main_authenticator(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> Authenticator:
+    """Run ``main()`` with *argv* and return the authenticator it would serve with.
+
+    ``_run`` is replaced so no server or adapter starts; its arguments are
+    captured instead.
+    """
+    captured: dict[str, Authenticator] = {}
+
+    async def fake_run(settings: Settings, adapter_spec: str, authenticator: Authenticator) -> None:
+        captured["authenticator"] = authenticator
+
+    monkeypatch.setattr(cli, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["vitals-on-fhir", *argv])
+    cli.main()
+    return captured["authenticator"]
+
+
+def test_main_without_a_token_starts_in_demo_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No token, no flags: the default mock adapter serves without auth."""
+    monkeypatch.chdir(tmp_path)
+
+    authenticator = _main_authenticator(monkeypatch, [])
+
+    assert authenticator.requires_credentials is False
+
+
+def test_main_no_demo_flag_overrides_the_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--no-demo`` wins over ``demo_mode: true`` and exits with a usage error."""
+    _write_yaml(tmp_path / "config.yaml", "demo_mode: true\n")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _main_authenticator(monkeypatch, ["--no-demo"])
+
+    assert exc_info.value.code == 2
+    assert "demo mode is off" in capsys.readouterr().err
+
+
+def test_main_demo_flag_overrides_the_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--demo`` wins over ``VOF_DEMO_MODE=false``."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("VOF_DEMO_MODE", "false")
+
+    authenticator = _main_authenticator(monkeypatch, ["--demo"])
+
+    assert authenticator.requires_credentials is False
+
+
+def test_main_real_device_without_a_token_exits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--adapter miband10`` with no token stops at startup, naming the fix."""
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _main_authenticator(monkeypatch, ["--adapter", "miband10"])
+
+    assert exc_info.value.code == 2
+    assert "requires VOF_API_TOKEN" in capsys.readouterr().err
