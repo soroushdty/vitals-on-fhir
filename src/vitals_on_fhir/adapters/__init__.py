@@ -13,6 +13,8 @@ from vitals_on_fhir.adapters.builtin.miband10 import MiBand10Adapter
 from vitals_on_fhir.adapters.builtin.mock import (
     BloodPressureEmissionMode,
     EmissionMode,
+    HeartRateScenario,
+    HeartRateScenarioControl,
     MockAdapter,
     MockBloodPressureAdapter,
     MockOximeterAdapter,
@@ -42,6 +44,8 @@ __all__ = [
     "BloodPressureBleAdapter",
     "MockAdapter",
     "EmissionMode",
+    "HeartRateScenario",
+    "HeartRateScenarioControl",
     "MockBloodPressureAdapter",
     "BloodPressureEmissionMode",
     "PulseOximeterBleAdapter",

@@ -373,42 +373,31 @@ def test_resolve_timezone_named_returns_zoneinfo() -> None:
     assert resolved == ZoneInfo("UTC")
 
 
-# --- Mock heart-rate range --------------------------------------------------
+# --- Mock adapter ------------------------------------------------------------
 
 
-def test_mock_hr_range_defaults_to_40_100(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """With no env or YAML the mock heart rate range is 40-100 bpm, one reading a second."""
-    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
-
-    settings = Settings(_yaml_path=tmp_path / "absent.yaml")
-
-    assert (settings.mock_hr_min, settings.mock_hr_max) == (40.0, 100.0)
-    assert settings.mock_interval == 1.0
-
-
-def test_yaml_sets_mock_hr_range_and_env_overrides_it(
+def test_mock_interval_defaults_to_one_second(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The mock range comes from YAML; an environment variable beats it per key."""
+    """The mock emits one reading per second unless configured otherwise."""
     monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
-    path = tmp_path / "config.yaml"
-    path.write_text("mock_hr_min: 55\nmock_hr_max: 130\nmock_interval: 0.5\n", encoding="utf-8")
 
-    from_yaml = Settings(_yaml_path=path)
-    assert (from_yaml.mock_hr_min, from_yaml.mock_hr_max) == (55.0, 130.0)
-    assert from_yaml.mock_interval == 0.5
-
-    monkeypatch.setenv("VOF_MOCK_HR_MAX", "90")
-    overridden = Settings(_yaml_path=path)
-    assert (overridden.mock_hr_min, overridden.mock_hr_max) == (55.0, 90.0)
+    assert Settings(_yaml_path=tmp_path / "absent.yaml").mock_interval == 1.0
 
 
-@pytest.mark.parametrize("low, high", [(100, 40), (70, 70)])
-def test_mock_hr_range_must_be_increasing(
-    low: float, high: float, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``mock_hr_min`` must be strictly below ``mock_hr_max``."""
+def test_mock_interval_must_be_positive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A zero or negative interval would busy-loop the mock, so it is rejected."""
     monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
 
     with pytest.raises(ValidationError):
-        Settings(_yaml_path=tmp_path / "absent.yaml", mock_hr_min=low, mock_hr_max=high)
+        Settings(_yaml_path=tmp_path / "absent.yaml", mock_interval=0)
+
+
+def test_mock_hr_range_keys_are_gone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The rhythm is chosen on the dashboard, so the old range keys are rejected."""
+    monkeypatch.setenv("VOF_API_TOKEN", "test-token-do-not-use")
+    path = tmp_path / "config.yaml"
+    path.write_text("mock_hr_min: 40\n", encoding="utf-8")
+
+    with pytest.raises(ValidationError):
+        Settings(_yaml_path=path)

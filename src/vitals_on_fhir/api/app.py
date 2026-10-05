@@ -33,7 +33,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
-from vitals_on_fhir.api import routes
+from vitals_on_fhir.api import mock_control, routes
 from vitals_on_fhir.api.auth import Authenticator
 from vitals_on_fhir.store import ObservationStore
 
@@ -77,6 +77,7 @@ def create_app(
     patient: Patient,
     device: Device,
     static_dir: str | Path | None = None,
+    scenario_control: mock_control.ScenarioControl | None = None,
 ) -> FastAPI:
     """Construct and return the configured FastAPI application.
 
@@ -112,6 +113,9 @@ def create_app(
         device: The startup-built ``Device`` resource for the connected device.
         static_dir: Filesystem path to the dashboard static assets.  When
             ``None``, no static mount is added (useful for API-only tests).
+        scenario_control: Mock-adapter scenario switch.  When given, the
+            token-protected ``/mock/*`` endpoints are registered; otherwise
+            they do not exist.
 
     Returns:
         A fully configured :class:`fastapi.FastAPI` instance ready for uvicorn.
@@ -134,6 +138,9 @@ def create_app(
     app.dependency_overrides[routes.get_authenticator] = lambda: authenticator
     app.dependency_overrides[routes.get_patient_resource] = lambda: patient
     app.dependency_overrides[routes.get_device_resource] = lambda: device
+
+    if scenario_control is not None:
+        app.include_router(mock_control.build_router(scenario_control))
 
     _register_websocket(app, authenticator=authenticator, broadcaster=broadcaster)
 

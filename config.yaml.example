@@ -40,10 +40,8 @@
 # adapter: mock          # mock | miband10 | package.module.ClassName
 # device_name:           # optional BLE device name filter (omit to connect to first match)
 
-# Mock adapter (--adapter mock): the simulated heart rate wanders between these
-# bounds (bpm), one reading every mock_interval seconds.
-# mock_hr_min: 40
-# mock_hr_max: 100
+# Mock adapter (--adapter mock): seconds between simulated readings. The rhythm
+# (normal, bradycardia, tachycardia, AF) is chosen with buttons on the dashboard.
 # mock_interval: 1.0
 
 # Device-timestamp interpretation.

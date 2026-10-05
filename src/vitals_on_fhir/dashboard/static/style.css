@@ -209,6 +209,42 @@ button:disabled {
   font-weight: 700;
 }
 
+/* Mock-device rhythm picker. */
+.sim-note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sim-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem;
+}
+
+.sim-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+}
+
+.sim-button span {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sim-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: #e6f3f0;
+}
+
 .notice .warning {
   background: var(--warning-bg);
   border-left: 4px solid var(--warning-border);

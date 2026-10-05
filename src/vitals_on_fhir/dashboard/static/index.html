@@ -62,6 +62,19 @@
       </dl>
     </section>
 
+    <!-- Mock-device simulator. Hidden unless the server runs --adapter mock (app.js). -->
+    <section class="card" id="sim-card" aria-labelledby="sim-heading" hidden>
+      <h2 id="sim-heading">Simulate a heart rhythm</h2>
+      <p class="sim-note">
+        Demo data from the mock device. These imitate how the heart <em>rate</em>
+        behaves in each rhythm. They are not an ECG and not a diagnosis.
+      </p>
+      <div id="sim-buttons" class="sim-buttons" role="group" aria-label="Heart rhythm to simulate"></div>
+      <p class="status-line">
+        <span id="sim-status" role="status" aria-live="polite"></span>
+      </p>
+    </section>
+
     <!-- Security and scope disclaimers (FR-5, security-privacy.md). -->
     <section class="card notice" aria-labelledby="notice-heading">
       <h2 id="notice-heading">Before you use this</h2>

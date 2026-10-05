@@ -49,6 +49,8 @@ from vitals_on_fhir.adapters import (
     ConnectionState,
     DeviceAdapter,
     HealthThermometerBleAdapter,
+    HeartRateScenario,
+    HeartRateScenarioControl,
     MiBand10Adapter,
     MockAdapter,
     MockBloodPressureAdapter,
@@ -153,7 +155,7 @@ def _resolve_adapter(
     """
     if adapter_spec == "mock":
         return MockAdapter(
-            hr_range=(settings.mock_hr_min, settings.mock_hr_max),
+            scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM,
             interval=settings.mock_interval,
         )
     if adapter_spec == "mock-bp":
@@ -302,6 +304,10 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
         patient=patient,
         device=device,
         static_dir=_STATIC_DIR,
+        # Only the simulated heart-rate device has scenarios to switch between.
+        scenario_control=(
+            HeartRateScenarioControl(adapter) if isinstance(adapter, MockAdapter) else None
+        ),
     )
 
     server = uvicorn.Server(

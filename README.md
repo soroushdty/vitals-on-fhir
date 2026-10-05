@@ -33,6 +33,8 @@ uv run vitals-on-fhir --adapter mock
 
 Once the service is running, open **`http://127.0.0.1:8000/`** in a browser, enter your `VOF_API_TOKEN`, and you'll see the live heart rate, the observation timestamp, and the connection status update in real time.
 
+With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel: normal sinus rhythm, sinus bradycardia, sinus tachycardia, or atrial fibrillation. Switching glides smoothly from the current rate. It imitates the heart *rate* only (no ECG) and is not a diagnosis. The same switch is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` selects one. These paths only exist for the mock adapter.
+
 **Run with a Xiaomi Smart Band 10:**
 
 1. Enable heart-rate broadcast on the band (a heart-rate sharing setting; its location varies by firmware).
@@ -71,8 +73,7 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `miband10`, or a fully qualified class path (`package.module.ClassName`) |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
-| `VOF_MOCK_HR_MIN` / `VOF_MOCK_HR_MAX` | `40` / `100` | Range (bpm) the `mock` adapter's simulated heart rate varies within |
-| `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings |
+| `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
 | `VOF_STORE_MAX` | `10000` | Maximum Observations kept in memory |

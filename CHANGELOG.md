@@ -5,22 +5,28 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
-## [2026-10-05] — Mock heart-rate range and live chart
+## [2026-10-05] — Mock heart-rhythm scenarios and live chart
 
-The `mock` adapter now produces a varying heart rate within a configurable range instead of a
-constant 72 bpm, and the dashboard shows a live chart and a correct connection status for clients
-that connect after the device.
+The `mock` adapter now simulates named heart rhythms that you switch between with buttons on the
+dashboard, and the dashboard shows a live chart and a correct connection status for clients that
+connect after the device.
 
-- Added: `VOF_MOCK_HR_MIN` / `VOF_MOCK_HR_MAX` (default `40` / `100`) and `VOF_MOCK_INTERVAL`
-  (default `1.0` s) config variables; `MockAdapter` takes `hr_range` and `rng`. Without `hr_range`
-  it still emits a fixed 72 bpm, so existing tests and callers are unaffected
-- Changed: `mock_hr_min`, `mock_hr_max` and `mock_interval` are ordinary `Settings` fields, so
-  they can also be set in `config.yaml` (see `config.yaml.example`)
+- Added: `HeartRateScenario` (`NORMAL_SINUS_RHYTHM`, `SINUS_BRADYCARDIA`, `SINUS_TACHYCARDIA`,
+  `ATRIAL_FIBRILLATION`) and `HeartRateScenarioControl` in `adapters/builtin/mock.py`;
+  `MockAdapter` takes `scenario` and `rng` and has a settable `scenario` property. Regular
+  rhythms are a mean-reverting walk that glides when switched; AF draws each reading
+  independently. Without a `scenario` it still emits a fixed 72 bpm, so existing tests and callers
+  are unaffected
+- Added: token-protected `GET /mock/scenarios` and `PUT /mock/scenario` (`api/mock_control.py`),
+  registered only when `create_app(scenario_control=...)` is given, i.e. only with `--adapter mock`
+- Added: `VOF_MOCK_INTERVAL` (default `1.0` s) config variable; started from the CLI, the `mock`
+  adapter now emits one reading per second (was one per 10 ms)
+- Added: dashboard "Simulate a heart rhythm" panel (shown only for the mock adapter) and a live
+  two-minute heart-rate chart with lowest/average/highest in `dashboard/static`
 - Changed: `DashboardBroadcaster.register` sends the last known `connection_state` to a newly
   connected client, and the dashboard marks the device connected when a reading arrives
-- Added: live two-minute heart-rate chart with lowest/average/highest in `dashboard/static`
-- Changed: started from the CLI, the `mock` adapter now emits one reading per second (was one per
-  10 ms)
+- Changed: dashboard static files are served with `Cache-Control: no-cache` so an upgraded
+  dashboard is not hidden behind a browser's heuristically cached copy
 
 ## [2026-09-23] — config.yaml configuration layer (spec/config-file)
 

@@ -15,6 +15,9 @@
  * While the device is disconnected the last reading is dimmed and no new
  * values are shown; presentation resumes automatically on reconnect (FR-6).
  *
+ * When the server runs the mock adapter it also exposes /mock/scenarios; the
+ * page then shows buttons to switch the simulated heart rhythm.
+ *
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
  */
@@ -43,6 +46,7 @@
   var SVG_NS = "http://www.w3.org/2000/svg";
 
   var history = []; // [{ t: epoch ms, v: bpm }], oldest first
+  var scenarioOptions = []; // [{ id, label, description }] from /mock/scenarios
   var socket = null;
   var reconnectTimer = null;
   var manualClose = false;
@@ -62,6 +66,9 @@
     els.statMin = document.getElementById("stat-min");
     els.statAvg = document.getElementById("stat-avg");
     els.statMax = document.getElementById("stat-max");
+    els.simCard = document.getElementById("sim-card");
+    els.simButtons = document.getElementById("sim-buttons");
+    els.simStatus = document.getElementById("sim-status");
   }
 
   function setStatus(text, kind) {
@@ -278,6 +285,91 @@
     }
   }
 
+  function authHeaders(extra) {
+    var headers = { Authorization: "Bearer " + currentToken };
+    for (var key in extra) {
+      headers[key] = extra[key];
+    }
+    return headers;
+  }
+
+  // Highlight the active scenario button and say which one is running.
+  function markScenario(id) {
+    var label = "";
+    Array.prototype.forEach.call(els.simButtons.children, function (button) {
+      var active = button.getAttribute("data-id") === id;
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    scenarioOptions.forEach(function (option) {
+      if (option.id === id) {
+        label = option.label;
+      }
+    });
+    els.simStatus.textContent = label ? "Simulating: " + label : "";
+  }
+
+  function selectScenario(id) {
+    fetch("/mock/scenario", {
+      method: "PUT",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ scenario: id }),
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        markScenario(data.current);
+      })
+      .catch(function () {
+        els.simStatus.textContent = "Could not change the simulated rhythm.";
+      });
+  }
+
+  function renderScenarios(data) {
+    scenarioOptions = data.scenarios || [];
+    els.simButtons.replaceChildren();
+    scenarioOptions.forEach(function (option) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "sim-button";
+      button.setAttribute("data-id", option.id);
+      button.setAttribute("aria-pressed", "false");
+      var title = document.createElement("strong");
+      title.textContent = option.label;
+      var detail = document.createElement("span");
+      detail.textContent = option.description;
+      button.appendChild(title);
+      button.appendChild(detail);
+      button.addEventListener("click", function () {
+        selectScenario(option.id);
+      });
+      els.simButtons.appendChild(button);
+    });
+    markScenario(data.current);
+    els.simCard.hidden = false;
+  }
+
+  // Only the mock adapter exposes /mock/scenarios; any other answer (404 for a
+  // real device, 401 for a wrong token) leaves the simulator panel hidden.
+  function loadScenarios() {
+    els.simCard.hidden = true;
+    fetch("/mock/scenarios", { headers: authHeaders() })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (data) {
+        if (data) {
+          renderScenarios(data);
+        }
+      })
+      .catch(function () {
+        /* leave the panel hidden */
+      });
+  }
+
   function buildWebSocketUrl(token) {
     var scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
     return (
@@ -362,6 +454,7 @@
     }
 
     openSocket(currentToken);
+    loadScenarios();
   }
 
   function init() {

@@ -13,6 +13,7 @@ import asyncio
 import enum
 import random
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar
 
@@ -27,8 +28,7 @@ from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 _DEFAULT_INTERVAL = 0.01  # seconds between yields; small so tests stay fast
 _VALID_HEART_RATE = 72.0  # bpm, comfortably inside the plausible range
 _IMPLAUSIBLE_HEART_RATE = 300.0  # bpm, above the default plausible upper bound
-_HR_WALK_STEP = 0.06  # per-reading noise, as a fraction of the configured range
-_HR_WALK_PULL = 0.1  # per-reading pull back toward the middle of the range
+_HR_PULL = 0.2  # per-reading pull toward a scenario's mean; sets how fast a switch glides
 
 
 class EmissionMode(enum.Enum):
@@ -44,6 +44,81 @@ class EmissionMode(enum.Enum):
     NO_SENSOR_CONTACT = "no_sensor_contact"
 
 
+class HeartRateScenario(enum.Enum):
+    """A simulated heart-rate pattern that ``MockAdapter`` can be switched to.
+
+    These imitate how the *rate* behaves in each rhythm.  The mock emits one
+    beats-per-minute value per reading, so it cannot reproduce an ECG; it is a
+    demonstration signal, not a diagnosis.
+    """
+
+    NORMAL_SINUS_RHYTHM = "normal_sinus_rhythm"
+    SINUS_BRADYCARDIA = "sinus_bradycardia"
+    SINUS_TACHYCARDIA = "sinus_tachycardia"
+    ATRIAL_FIBRILLATION = "atrial_fibrillation"
+
+
+@dataclass(frozen=True)
+class _ScenarioProfile:
+    """How a scenario's heart rate behaves.
+
+    Attributes:
+        label: Human-readable name shown on the dashboard.
+        description: One-line summary shown under the label.
+        mean: Rate (bpm) the series settles around.
+        low: Lowest whole-bpm value emitted once settled.
+        high: Highest whole-bpm value emitted once settled.
+        step: Standard deviation (bpm) of the per-reading noise.
+        irregular: ``True`` for beat-to-beat chaos (each reading drawn
+            independently); ``False`` for a smooth, mean-reverting walk.
+    """
+
+    label: str
+    description: str
+    mean: float
+    low: int
+    high: int
+    step: float
+    irregular: bool = False
+
+
+_SCENARIO_PROFILES: dict[HeartRateScenario, _ScenarioProfile] = {
+    HeartRateScenario.NORMAL_SINUS_RHYTHM: _ScenarioProfile(
+        label="Normal sinus rhythm",
+        description="60-100 bpm, steady and regular",
+        mean=72.0,
+        low=60,
+        high=100,
+        step=1.2,
+    ),
+    HeartRateScenario.SINUS_BRADYCARDIA: _ScenarioProfile(
+        label="Sinus bradycardia",
+        description="Below 60 bpm, steady and regular",
+        mean=50.0,
+        low=38,
+        high=59,
+        step=1.0,
+    ),
+    HeartRateScenario.SINUS_TACHYCARDIA: _ScenarioProfile(
+        label="Sinus tachycardia",
+        description="Above 100 bpm, steady and regular",
+        mean=118.0,
+        low=101,
+        high=150,
+        step=1.8,
+    ),
+    HeartRateScenario.ATRIAL_FIBRILLATION: _ScenarioProfile(
+        label="Atrial fibrillation",
+        description="Fast and irregularly irregular, jumping beat to beat",
+        mean=125.0,
+        low=70,
+        high=180,
+        step=22.0,
+        irregular=True,
+    ),
+}
+
+
 class MockAdapter(DeviceAdapter):
     """Simulated device adapter that emits synthetic heart-rate readings.
 
@@ -51,9 +126,10 @@ class MockAdapter(DeviceAdapter):
     values, or readings with lost sensor contact so the full validator chain
     can be exercised in tests. An optional ``count`` bounds how many readings
     are yielded (``None`` yields indefinitely until disconnected), and
-    ``interval`` sets the cooperative delay between yields. With ``hr_range``
-    set, ``VALID`` readings wander within that range like a resting heart rate
-    instead of repeating one fixed value. Never imports ``bleak``.
+    ``interval`` sets the cooperative delay between yields. With a ``scenario``
+    set, ``VALID`` readings follow that :class:`HeartRateScenario` (and it can be
+    changed while running) instead of repeating one fixed value. Never imports
+    ``bleak``.
     """
 
     supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (HeartRate,)
@@ -64,7 +140,7 @@ class MockAdapter(DeviceAdapter):
         *,
         interval: float = _DEFAULT_INTERVAL,
         count: int | None = None,
-        hr_range: tuple[float, float] | None = None,
+        scenario: HeartRateScenario | None = None,
         rng: random.Random | None = None,
     ) -> None:
         """Create a mock adapter.
@@ -75,20 +151,15 @@ class MockAdapter(DeviceAdapter):
             interval: Seconds to sleep between yielded readings.
             count: Maximum number of readings to yield, or ``None`` to yield
                 indefinitely until ``disconnect`` is called.
-            hr_range: ``(low, high)`` bpm bounds for variable ``VALID`` readings,
-                or ``None`` to emit a fixed 72 bpm.
+            scenario: Heart-rate pattern for ``VALID`` readings, or ``None`` to
+                emit a fixed 72 bpm.
             rng: Random source for variable readings; pass a seeded
                 ``random.Random`` for reproducible output.
-
-        Raises:
-            ValueError: If ``hr_range`` is given and ``low`` is not below ``high``.
         """
-        if hr_range is not None and hr_range[0] >= hr_range[1]:
-            raise ValueError("hr_range must be (low, high) with low < high")
         self._emission_mode = emission_mode
         self._interval = interval
         self._count = count
-        self._hr_range = hr_range
+        self._scenario = scenario
         self._rng = rng if rng is not None else random.Random()
         self._hr: float | None = None
         self._state = ConnectionState.DISCONNECTED
@@ -101,6 +172,16 @@ class MockAdapter(DeviceAdapter):
             model="Mock HR",
             identifiers={"mock": "1"},
         )
+
+    @property
+    def scenario(self) -> HeartRateScenario | None:
+        """Return the active heart-rate scenario, or ``None`` for a fixed 72 bpm."""
+        return self._scenario
+
+    @scenario.setter
+    def scenario(self, scenario: HeartRateScenario) -> None:
+        """Switch to *scenario*; the next reading follows it, gliding from the last rate."""
+        self._scenario = scenario
 
     @property
     def state(self) -> ConnectionState:
@@ -161,24 +242,71 @@ class MockAdapter(DeviceAdapter):
         )
 
     def _next_heart_rate(self) -> float:
-        """Return the next valid heart rate in bpm.
+        """Return the next valid heart rate in bpm for the active scenario.
 
-        Fixed at 72 bpm unless ``hr_range`` was given.  Otherwise a mean-reverting
-        random walk, rounded to whole bpm and kept inside the range, so the
-        series looks like a real heart rate rather than uncorrelated noise.
+        Fixed at 72 bpm when no scenario is set.  Regular scenarios use a
+        mean-reverting random walk, so switching from another scenario glides to
+        the new rate over several readings and, once inside its band, never
+        leaves it.  Atrial fibrillation draws every reading independently, so it
+        jumps around from beat to beat.  Values are whole bpm.
         """
-        if self._hr_range is None:
+        if self._scenario is None:
             return _VALID_HEART_RATE
-        low, high = self._hr_range
-        middle = (low + high) / 2
-        current = middle if self._hr is None else self._hr
-        step = self._rng.gauss(0.0, (high - low) * _HR_WALK_STEP)
-        self._hr = min(max(current + _HR_WALK_PULL * (middle - current) + step, low), high)
-        return min(max(float(round(self._hr)), low), high)
+        profile = _SCENARIO_PROFILES[self._scenario]
+        if profile.irregular:
+            value = self._rng.gauss(profile.mean, profile.step)
+            self._hr = min(max(value, profile.low), profile.high)
+        else:
+            current = profile.mean if self._hr is None else self._hr
+            pull = _HR_PULL * (profile.mean - current)
+            value = current + pull + self._rng.gauss(0.0, profile.step)
+            if profile.low <= current <= profile.high:
+                value = min(max(value, profile.low), profile.high)
+            self._hr = value
+        return float(round(self._hr))
 
     def _device_id(self) -> str:
         """Return the device identifier used for readings from this adapter."""
         return self.device_info.identifiers["mock"]
+
+
+class HeartRateScenarioControl:
+    """Lets the dashboard choose the :class:`MockAdapter` heart-rate scenario.
+
+    Structurally satisfies ``api.mock_control.ScenarioControl`` (the ``api``
+    package cannot import adapters); ``cli.py`` hands it to ``create_app``.
+    """
+
+    def __init__(self, adapter: MockAdapter) -> None:
+        """Wrap *adapter*, starting it on normal sinus rhythm if it has no scenario."""
+        if adapter.scenario is None:
+            adapter.scenario = HeartRateScenario.NORMAL_SINUS_RHYTHM
+        self._adapter = adapter
+
+    @property
+    def current(self) -> str:
+        """Return the id of the active scenario."""
+        scenario = self._adapter.scenario
+        assert scenario is not None  # set in __init__
+        return scenario.value
+
+    def options(self) -> list[dict[str, str]]:
+        """Return every selectable scenario as ``{"id", "label", "description"}``."""
+        return [
+            {"id": s.value, "label": p.label, "description": p.description}
+            for s, p in _SCENARIO_PROFILES.items()
+        ]
+
+    def select(self, scenario_id: str) -> None:
+        """Switch to the scenario with id *scenario_id*.
+
+        Raises:
+            ValueError: If *scenario_id* is not one of :meth:`options`.
+        """
+        try:
+            self._adapter.scenario = HeartRateScenario(scenario_id)
+        except ValueError:
+            raise ValueError(f"Unknown scenario {scenario_id!r}") from None
 
 
 _VALID_SYSTOLIC = 118.0  # mmHg, inside the default plausible range

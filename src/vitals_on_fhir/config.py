@@ -21,10 +21,10 @@ no ``.env`` file exists.  Unknown keys from any source are rejected at startup
 """
 
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -77,10 +77,8 @@ class Settings(BaseSettings):
     adapter: str = "mock"
     device_name: str | None = None
 
-    # Mock heart-rate adapter: the simulated rate wanders within this range (bpm)
-    # and a reading is emitted every ``mock_interval`` seconds.
-    mock_hr_min: float = 40.0
-    mock_hr_max: float = 100.0
+    # Mock heart-rate adapter: seconds between simulated readings.  The rhythm
+    # itself is chosen from the dashboard, not configured.
     mock_interval: float = Field(default=1.0, gt=0)
 
     # Validation bounds — heart rate (bpm)
@@ -156,10 +154,3 @@ class Settings(BaseSettings):
             dotenv_settings,
             YamlConfigSettingsSource(settings_cls, yaml_file=cls._yaml_path),
         )
-
-    @model_validator(mode="after")
-    def _check_mock_hr_range(self) -> Self:
-        """Require ``mock_hr_min < mock_hr_max`` so the simulated rate can vary."""
-        if self.mock_hr_min >= self.mock_hr_max:
-            raise ValueError("mock_hr_min must be less than mock_hr_max")
-        return self

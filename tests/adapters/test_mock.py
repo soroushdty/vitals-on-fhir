@@ -15,7 +15,11 @@ import random
 import pytest
 
 from tests.adapters.contract import DeviceAdapterContract
-from vitals_on_fhir.adapters.builtin.mock import MockAdapter
+from vitals_on_fhir.adapters.builtin.mock import (
+    HeartRateScenario,
+    HeartRateScenarioControl,
+    MockAdapter,
+)
 
 
 class TestMockAdapterContract(DeviceAdapterContract):
@@ -28,7 +32,9 @@ class TestMockAdapterContract(DeviceAdapterContract):
         return MockAdapter()
 
 
-# --- Variable heart rate (hr_range) ----------------------------------------
+# --- Heart-rate scenarios ----------------------------------------------------
+
+_SETTLE = 40  # readings to skip so a switch from another scenario has finished gliding
 
 
 async def _collect(adapter: MockAdapter) -> list[float]:
@@ -37,43 +43,107 @@ async def _collect(adapter: MockAdapter) -> list[float]:
     return [reading.value async for reading in adapter.vitals()]  # type: ignore[attr-defined]
 
 
+def _run_scenario(scenario: HeartRateScenario, count: int = 400, seed: int = 1) -> list[float]:
+    """Return *count* readings from a fresh adapter on *scenario*."""
+    adapter = MockAdapter(count=count, scenario=scenario, interval=0, rng=random.Random(seed))
+    return asyncio.run(_collect(adapter))
+
+
 def test_default_mock_emits_fixed_72() -> None:
-    """Without ``hr_range`` the mock keeps its legacy constant reading."""
-    values = asyncio.run(_collect(MockAdapter(count=20)))
-
-    assert values == [72.0] * 20
+    """Without a scenario the mock keeps its legacy constant reading."""
+    assert asyncio.run(_collect(MockAdapter(count=20))) == [72.0] * 20
 
 
-def test_hr_range_readings_vary_and_stay_in_range() -> None:
-    """With ``hr_range`` readings vary but never leave the configured bounds."""
-    adapter = MockAdapter(count=500, hr_range=(40.0, 100.0), rng=random.Random(1))
+@pytest.mark.parametrize("seed", range(5))
+def test_normal_sinus_rhythm_is_regular_and_between_60_and_100(seed: int) -> None:
+    """NSR stays in 60-100 bpm and changes only a little between readings."""
+    values = _run_scenario(HeartRateScenario.NORMAL_SINUS_RHYTHM, seed=seed)
 
-    values = asyncio.run(_collect(adapter))
-
-    assert len(values) == 500
-    assert all(40.0 <= v <= 100.0 for v in values)
-    assert len(set(values)) > 10
+    assert all(60 <= v <= 100 for v in values)
+    assert max(abs(b - a) for a, b in zip(values, values[1:], strict=False)) <= 10
 
 
-def test_hr_range_respects_a_narrow_configured_range() -> None:
-    """A custom range, even a narrow one, bounds every reading."""
-    adapter = MockAdapter(count=300, hr_range=(58.0, 62.0), rng=random.Random(2))
+@pytest.mark.parametrize("seed", range(5))
+def test_sinus_bradycardia_stays_below_60(seed: int) -> None:
+    """Sinus bradycardia is always under 60 bpm and still above the plausible floor."""
+    values = _run_scenario(HeartRateScenario.SINUS_BRADYCARDIA, seed=seed)
 
-    values = asyncio.run(_collect(adapter))
-
-    assert all(58.0 <= v <= 62.0 for v in values)
+    assert all(38 <= v < 60 for v in values)
 
 
-def test_hr_range_is_reproducible_with_a_seeded_rng() -> None:
+@pytest.mark.parametrize("seed", range(5))
+def test_sinus_tachycardia_stays_above_100(seed: int) -> None:
+    """Sinus tachycardia is always over 100 bpm."""
+    values = _run_scenario(HeartRateScenario.SINUS_TACHYCARDIA, seed=seed)
+
+    assert all(100 < v <= 150 for v in values)
+
+
+def test_atrial_fibrillation_is_fast_and_irregular() -> None:
+    """AF jumps around beat to beat, far more than any regular scenario."""
+    af = _run_scenario(HeartRateScenario.ATRIAL_FIBRILLATION)
+    nsr = _run_scenario(HeartRateScenario.NORMAL_SINUS_RHYTHM)
+
+    def mean_jump(values: list[float]) -> float:
+        return sum(abs(b - a) for a, b in zip(values, values[1:], strict=False)) / (len(values) - 1)
+
+    assert all(70 <= v <= 180 for v in af)
+    assert mean_jump(af) > 5 * mean_jump(nsr)
+    assert sum(af) / len(af) > 100
+
+
+def test_switching_scenario_glides_then_settles_in_the_new_band() -> None:
+    """A live switch moves smoothly to the new rhythm instead of jumping in one reading."""
+
+    async def scenario() -> list[float]:
+        adapter = MockAdapter(
+            scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM, interval=0, rng=random.Random(3)
+        )
+        await adapter.connect()
+        values: list[float] = []
+        async for reading in adapter.vitals():
+            values.append(reading.value)  # type: ignore[attr-defined]
+            if len(values) == 30:
+                adapter.scenario = HeartRateScenario.SINUS_TACHYCARDIA
+            if len(values) == 30 + _SETTLE + 100:
+                await adapter.disconnect()
+        return values
+
+    values = asyncio.run(scenario())
+    before, after = values[:30], values[30:]
+
+    assert max(after[0], after[1]) - before[-1] < 35  # no instant jump to ~118
+    assert all(100 < v <= 150 for v in after[_SETTLE:])
+
+
+def test_scenarios_are_reproducible_with_a_seeded_rng() -> None:
     """The same seed gives the same series."""
-    first = asyncio.run(_collect(MockAdapter(count=50, hr_range=(40, 100), rng=random.Random(7))))
-    second = asyncio.run(_collect(MockAdapter(count=50, hr_range=(40, 100), rng=random.Random(7))))
+    for scenario in HeartRateScenario:
+        assert _run_scenario(scenario, count=50, seed=7) == _run_scenario(
+            scenario, count=50, seed=7
+        )
 
-    assert first == second
+
+def test_control_lists_options_and_switches_scenario() -> None:
+    """``HeartRateScenarioControl`` exposes every scenario and applies a selection."""
+    adapter = MockAdapter()
+    control = HeartRateScenarioControl(adapter)
+
+    assert control.current == "normal_sinus_rhythm"  # adopted because none was set
+    assert [o["id"] for o in control.options()] == [s.value for s in HeartRateScenario]
+    assert all(o["label"] and o["description"] for o in control.options())
+
+    control.select("atrial_fibrillation")
+
+    assert control.current == "atrial_fibrillation"
+    assert adapter.scenario is HeartRateScenario.ATRIAL_FIBRILLATION
 
 
-@pytest.mark.parametrize("hr_range", [(100.0, 40.0), (70.0, 70.0)])
-def test_invalid_hr_range_is_rejected(hr_range: tuple[float, float]) -> None:
-    """``hr_range`` must be ``(low, high)`` with ``low < high``."""
-    with pytest.raises(ValueError, match="low < high"):
-        MockAdapter(hr_range=hr_range)
+def test_control_rejects_an_unknown_scenario() -> None:
+    """An unknown id raises ``ValueError`` and leaves the scenario unchanged."""
+    control = HeartRateScenarioControl(MockAdapter(scenario=HeartRateScenario.SINUS_BRADYCARDIA))
+
+    with pytest.raises(ValueError, match="Unknown scenario"):
+        control.select("ventricular_tachycardia")
+
+    assert control.current == "sinus_bradycardia"
