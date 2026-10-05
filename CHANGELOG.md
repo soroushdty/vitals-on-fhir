@@ -7,13 +7,13 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ## [2026-10-05] — Mock heart-rhythm scenarios and live chart
 
-The `mock` adapter now simulates named heart rhythms that you switch between with buttons on the
+The `mock` adapter now simulates named heart rhythms that you switch between with a dropdown on the
 dashboard, and the dashboard shows a live chart and a correct connection status for clients that
 connect after the device.
 
 - Added: `adapters/builtin/hr_scenarios.py` — `HeartRateScenario` (steady: `NORMAL_SINUS_RHYTHM`,
   `SINUS_BRADYCARDIA`, `SINUS_TACHYCARDIA`, `ATRIAL_FIBRILLATION`; episodes: `PAROXYSMAL_AF`, `SVT`,
-  `ATRIAL_FLUTTER`, `PVC`; other: `EXERCISE_RAMP`, `OFF_WRIST`, `DISCONNECT_RECONNECT`) and
+  `ATRIAL_FLUTTER`; other: `EXERCISE_RAMP`, `OFF_WRIST`, `DISCONNECT_RECONNECT`) and
   `ScenarioEngine`. Regular rhythms are a mean-reverting walk that glides when switched; AF draws
   each reading independently; episodes start normal and change abruptly; exercise loops a ramp
 - Added: `MockAdapter` takes `scenario`, `rng` and `on_state_change`, has a settable `scenario`

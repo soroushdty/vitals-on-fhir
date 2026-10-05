@@ -72,7 +72,9 @@
         Demo data from the mock device. These imitate how the heart <em>rate</em>
         behaves in each rhythm. They are not an ECG and not a diagnosis.
       </p>
-      <div id="sim-buttons" class="sim-buttons" role="group" aria-label="Heart rhythm to simulate"></div>
+      <label for="sim-select">Scenario</label>
+      <select id="sim-select" class="sim-select"></select>
+      <p class="sim-description" id="sim-description"></p>
       <p class="status-line">
         <span id="sim-status" role="status" aria-live="polite"></span>
       </p>

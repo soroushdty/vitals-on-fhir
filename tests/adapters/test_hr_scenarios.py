@@ -114,18 +114,6 @@ def test_atrial_flutter_plateaus_near_150_and_steps_to_100_or_75(seed: int) -> N
 
 
 @pytest.mark.parametrize("seed", _SEEDS)
-def test_pvc_is_normal_rhythm_with_early_beat_spikes_then_a_pause(seed: int) -> None:
-    """Mostly 60-100 bpm; an occasional early beat reads as a high spike then a low dip."""
-    bpm = _bpm(HeartRateScenario.PVC, 600, seed)
-    spikes = [i for i, v in enumerate(bpm[:-1]) if v > 105]
-
-    assert 5 <= len(spikes) <= 80
-    assert all(bpm[i + 1] < 62 for i in spikes)  # every spike is followed by the pause
-    assert sum(60 <= v <= 100 for v in bpm) > 0.8 * len(bpm)
-    assert all(30 <= v <= 220 for v in bpm)
-
-
-@pytest.mark.parametrize("seed", _SEEDS)
 def test_off_wrist_loses_sensor_contact_in_stretches(seed: int) -> None:
     """Contact starts good, drops for 14-22 readings, returns, and repeats; the link stays up."""
     ticks = _ticks(HeartRateScenario.OFF_WRIST, 200, seed)

@@ -218,53 +218,27 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* Mock-device rhythm picker. */
-.sim-group {
-  margin: 1rem 0 0.4rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.sim-group:first-of-type {
-  margin-top: 0;
-}
-
+/* Mock-device scenario picker. */
 .sim-note {
   margin: 0 0 0.75rem;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.sim-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.6rem;
-}
-
-.sim-button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-  padding: 0.7rem 0.9rem;
-  text-align: left;
+.sim-select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
   color: var(--text);
   background: var(--card-bg);
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
-.sim-button span {
-  font-size: 0.8rem;
-  font-weight: 400;
+.sim-description {
+  margin: 0.5rem 0 0;
   color: var(--muted);
-}
-
-.sim-button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: #e6f3f0;
+  font-size: 0.9rem;
 }
 
 .notice .warning {

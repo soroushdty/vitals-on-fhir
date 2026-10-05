@@ -27,8 +27,6 @@ import random
 from dataclasses import dataclass
 
 _PULL = 0.2  # per-reading pull toward the target rate; sets how fast a switch glides
-_MIN_BPM = 30.0  # hard limits for premature-beat spikes and dips
-_MAX_BPM = 220.0
 
 
 class HeartRateScenario(enum.Enum):
@@ -41,7 +39,6 @@ class HeartRateScenario(enum.Enum):
     PAROXYSMAL_AF = "paroxysmal_af"
     SVT = "svt"
     ATRIAL_FLUTTER = "atrial_flutter"
-    PVC = "pvc"
     EXERCISE_RAMP = "exercise_ramp"
     OFF_WRIST = "off_wrist"
     DISCONNECT_RECONNECT = "disconnect_reconnect"
@@ -59,8 +56,6 @@ class _Profile:
         irregular: ``True`` for beat-to-beat chaos (each reading drawn
             independently); ``False`` for a smooth, mean-reverting walk.
         mean_to: If set, ``mean`` moves linearly to this over the phase (a ramp).
-        ectopic: Chance per reading of a premature beat: an early-beat spike
-            followed by a compensatory-pause dip.
     """
 
     mean: float
@@ -69,7 +64,6 @@ class _Profile:
     step: float
     irregular: bool = False
     mean_to: float | None = None
-    ectopic: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -164,12 +158,6 @@ _SPECS: dict[HeartRateScenario, _Spec] = {
             _Phase(_Profile(mean=75.0, low=71, high=79, step=0.8), (6, 14)),
         ),
     ),
-    HeartRateScenario.PVC: _Spec(
-        "Occasional PVCs",
-        "Normal rhythm with now and then an early beat: a spike, then a pause",
-        _EPISODES,
-        (_Phase(_Profile(mean=72.0, low=60, high=100, step=1.2, ectopic=0.06)),),
-    ),
     HeartRateScenario.EXERCISE_RAMP: _Spec(
         "Exercise and recovery",
         "Rest, ramp up to about 150, hold, then slow recovery (about 2 minutes, repeating)",
@@ -248,7 +236,6 @@ class ScenarioEngine:
         self._scenario = HeartRateScenario.NORMAL_SINUS_RHYTHM
         self._started = False
         self._hr: float | None = None
-        self._pending: list[float] = []  # queued premature-beat readings
         self._index = 0  # current phase
         self._length = 0  # readings the current phase lasts (0 = forever)
         self._tick = 0  # readings spent in the current phase
@@ -257,7 +244,6 @@ class ScenarioEngine:
         """Switch to *scenario*, starting at its first phase on the next :meth:`step`."""
         self._scenario = scenario
         self._started = False
-        self._pending.clear()
 
     def step(self) -> Tick:
         """Advance one reading and return what the device does."""
@@ -282,7 +268,6 @@ class ScenarioEngine:
         self._tick = 0
         if abrupt:
             self._hr = None
-            self._pending.clear()
 
     def _pick_next(self, spec: _Spec) -> int:
         """Return the next phase: the following one in a cycle, else a random other one."""
@@ -306,14 +291,4 @@ class ScenarioEngine:
             if profile.low <= current <= profile.high:
                 value = _clamp(value, profile.low, profile.high)  # once inside, stay inside
             self._hr = value
-        bpm = float(round(self._hr))
-
-        if self._pending:
-            return self._pending.pop(0)
-        if profile.ectopic and self._rng.random() < profile.ectopic:
-            # Early beat: a short gap reads as a high rate, then the pause as a low one.
-            dip = round(bpm * self._rng.uniform(0.6, 0.75))
-            spike = round(bpm * self._rng.uniform(1.5, 1.9))
-            self._pending.append(_clamp(dip, _MIN_BPM, _MAX_BPM))
-            return _clamp(spike, _MIN_BPM, _MAX_BPM)
-        return bpm
+        return float(round(self._hr))

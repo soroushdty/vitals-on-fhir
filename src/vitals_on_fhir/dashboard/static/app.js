@@ -16,7 +16,7 @@
  * values are shown; presentation resumes automatically on reconnect (FR-6).
  *
  * When the server runs the mock adapter it also exposes /mock/scenarios; the
- * page then shows buttons to switch the simulated heart rhythm.
+ * page then shows a dropdown to switch the simulated heart rhythm.
  *
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
@@ -50,6 +50,7 @@
 
   var history = []; // [{ t: epoch ms, v: bpm }], oldest first
   var scenarioOptions = []; // [{ id, label, description, group }] from /mock/scenarios
+  var currentScenario = ""; // id of the scenario the server is running
   var deviceLive = false; // true while the device is reported connected
   var lastReadingAt = null; // epoch ms of the latest valid reading, or null
   var socket = null;
@@ -72,7 +73,8 @@
     els.statAvg = document.getElementById("stat-avg");
     els.statMax = document.getElementById("stat-max");
     els.simCard = document.getElementById("sim-card");
-    els.simButtons = document.getElementById("sim-buttons");
+    els.simSelect = document.getElementById("sim-select");
+    els.simDescription = document.getElementById("sim-description");
     els.simStatus = document.getElementById("sim-status");
     els.readingNote = document.getElementById("reading-note");
   }
@@ -321,19 +323,19 @@
     return headers;
   }
 
-  // Highlight the active scenario button and say which one is running.
+  // Show the active scenario in the dropdown, with its description, and say
+  // which one is running.
   function markScenario(id) {
-    var label = "";
-    Array.prototype.forEach.call(els.simButtons.querySelectorAll("button"), function (button) {
-      var active = button.getAttribute("data-id") === id;
-      button.setAttribute("aria-pressed", active ? "true" : "false");
-    });
-    scenarioOptions.forEach(function (option) {
-      if (option.id === id) {
-        label = option.label;
+    var option = null;
+    scenarioOptions.forEach(function (candidate) {
+      if (candidate.id === id) {
+        option = candidate;
       }
     });
-    els.simStatus.textContent = label ? "Simulating: " + label : "";
+    currentScenario = id;
+    els.simSelect.value = id;
+    els.simDescription.textContent = option ? option.description : "";
+    els.simStatus.textContent = option ? "Simulating: " + option.label : "";
   }
 
   function selectScenario(id) {
@@ -352,41 +354,28 @@
         markScenario(data.current);
       })
       .catch(function () {
+        markScenario(currentScenario); // put the dropdown back on what is really running
         els.simStatus.textContent = "Could not change the simulated rhythm.";
       });
   }
 
+  // Build the dropdown, one group (optgroup) per scenario category.
   function renderScenarios(data) {
     scenarioOptions = data.scenarios || [];
-    els.simButtons.replaceChildren();
+    els.simSelect.replaceChildren();
     var group = null;
-    var grid = null;
+    var optgroup = null;
     scenarioOptions.forEach(function (option) {
       if (option.group !== group) {
         group = option.group;
-        var heading = document.createElement("h3");
-        heading.className = "sim-group";
-        heading.textContent = group;
-        els.simButtons.appendChild(heading);
-        grid = document.createElement("div");
-        grid.className = "sim-grid";
-        els.simButtons.appendChild(grid);
+        optgroup = document.createElement("optgroup");
+        optgroup.label = group;
+        els.simSelect.appendChild(optgroup);
       }
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "sim-button";
-      button.setAttribute("data-id", option.id);
-      button.setAttribute("aria-pressed", "false");
-      var title = document.createElement("strong");
-      title.textContent = option.label;
-      var detail = document.createElement("span");
-      detail.textContent = option.description;
-      button.appendChild(title);
-      button.appendChild(detail);
-      button.addEventListener("click", function () {
-        selectScenario(option.id);
-      });
-      grid.appendChild(button);
+      var item = document.createElement("option");
+      item.value = option.id;
+      item.textContent = option.label;
+      optgroup.appendChild(item);
     });
     markScenario(data.current);
     els.simCard.hidden = false;
@@ -500,6 +489,9 @@
   function init() {
     cacheElements();
     els.form.addEventListener("submit", onSubmit);
+    els.simSelect.addEventListener("change", function () {
+      selectScenario(els.simSelect.value);
+    });
     drawChart();
     // Slide the window forward between readings (and across disconnects).
     window.setInterval(function () {
