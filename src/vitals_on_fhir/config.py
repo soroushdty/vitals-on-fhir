@@ -66,8 +66,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    # Required — no default; must be supplied via VOF_API_TOKEN
-    api_token: str
+    # Bearer token for the API and dashboard, supplied via VOF_API_TOKEN.  When
+    # it is missing (or empty) the service may only run in demo mode, below.
+    api_token: str | None = None
+
+    # Demo mode: with no api_token, run a mock adapter with authentication
+    # switched off instead of refusing to start.  A real device always needs
+    # a token; cli.py enforces both rules at startup.
+    demo_mode: bool = True
 
     # Network
     host: str = "127.0.0.1"
@@ -126,6 +132,12 @@ class Settings(BaseSettings):
         """
         type(self)._yaml_path = Path(_yaml_path)
         super().__init__(**kwargs)
+
+    @field_validator("api_token", "device_name")
+    @classmethod
+    def _empty_is_unset(cls, value: str | None) -> str | None:
+        """Treat an empty value (``VOF_API_TOKEN=``, ``VOF_DEVICE_NAME=``) as unset."""
+        return value or None
 
     @field_validator("timezone")
     @classmethod

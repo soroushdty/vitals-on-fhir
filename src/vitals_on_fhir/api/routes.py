@@ -160,7 +160,8 @@ async def require_token(
     them with the injected :class:`Authenticator`.  A missing or invalid token
     raises a :class:`FhirHttpError` mapped to HTTP 401 with an
     ``OperationOutcome`` (issue code ``security``) — never 403 (FR-12).  The
-    token value is never logged or echoed.
+    token value is never logged or echoed.  An authenticator that does not
+    require credentials (demo mode) lets every request through.
 
     Args:
         credentials: Parsed bearer credentials, or ``None`` when absent.
@@ -170,6 +171,8 @@ async def require_token(
     Raises:
         FhirHttpError: With status 401 when the token is missing or invalid.
     """
+    if not authenticator.requires_credentials:
+        return
     token = credentials.credentials if credentials is not None else ""
     if not token or not authenticator.authenticate(token):
         raise FhirHttpError(

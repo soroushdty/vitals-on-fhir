@@ -8,7 +8,7 @@
 #
 # Configuration precedence, highest to lowest:
 #
-#   1. command-line arguments (e.g. --adapter)
+#   1. command-line arguments (e.g. --adapter, --demo / --no-demo)
 #   2. environment variables (VOF_ prefix) and .env
 #   3. this config.yaml
 #   4. built-in defaults
@@ -36,8 +36,13 @@
 # host: 127.0.0.1        # bind address (loopback only by default, for security)
 # port: 8000             # HTTP port
 
+# Demo mode: with no VOF_API_TOKEN, run a mock adapter with authentication off
+# (simulated data only). A real device still needs a token. false makes a
+# missing token a startup error (CLI: --no-demo).
+# demo_mode: true
+
 # Device
-# adapter: mock          # mock | miband10 | package.module.ClassName
+# adapter: mock          # mock / mock-* (simulated) | miband10 | bp | spo2 | temp | weight | package.module.ClassName
 # device_name:           # optional BLE device name filter (omit to connect to first match)
 
 # Mock adapter (--adapter mock): seconds between simulated readings. The rhythm

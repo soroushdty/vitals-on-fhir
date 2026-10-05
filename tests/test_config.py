@@ -2,11 +2,13 @@
 """Tests for :class:`vitals_on_fhir.config.Settings` environment loading.
 
 Regression coverage for the documented setup flow (``cp .env.example .env``,
-set ``VOF_API_TOKEN``): ``Settings`` must read the ``.env`` file, and real
-process environment variables must take precedence over the file.
+optionally set ``VOF_API_TOKEN``): ``Settings`` must read the ``.env`` file, and
+real process environment variables must take precedence over the file.  An
+unedited copy of ``.env.example`` must give the built-in defaults (demo mode).
 """
 
 import os
+import re
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -15,6 +17,9 @@ import yaml
 from pydantic import ValidationError
 
 from vitals_on_fhir.config import Settings, resolve_timezone
+
+#: The repository root, where ``.env.example`` lives.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +46,7 @@ def test_settings_loads_api_token_from_env_file(
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.api_token == "test-token-do-not-use"
     # Untouched fields fall back to their declared defaults.
@@ -61,7 +66,7 @@ def test_env_file_populates_non_required_fields(
     )
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.adapter == "miband10"
     assert settings.port == 9000
@@ -75,19 +80,87 @@ def test_process_env_takes_precedence_over_env_file(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("VOF_API_TOKEN", "from-process-env")
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.api_token == "from-process-env"
 
 
-def test_missing_token_still_raises(
+def test_missing_token_is_none_and_demo_mode_defaults_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With no ``.env`` and no env var, the required token is reported missing."""
+    """With no ``.env`` and no env var, there is no token and demo mode is on.
+
+    ``cli.py`` then runs the mock adapter without authentication, or refuses to
+    start for a real device; ``Settings`` itself no longer requires the token.
+    """
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(ValueError):
-        Settings()  # type: ignore[call-arg]
+    settings = Settings()
+
+    assert settings.api_token is None
+    assert settings.demo_mode is True
+
+
+def test_empty_token_counts_as_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_API_TOKEN=`` is treated as no token, not as an empty password."""
+    _write_env(tmp_path, "VOF_API_TOKEN=\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().api_token is None
+
+
+def test_empty_device_name_is_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_DEVICE_NAME=`` means "no filter", not "a device named ''"."""
+    _write_env(tmp_path, "VOF_DEVICE_NAME=\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().device_name is None
+
+
+def test_demo_mode_can_be_turned_off_from_env_or_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``demo_mode`` follows the usual sources: YAML, overridden by env."""
+    yaml_path = tmp_path / "config.yaml"
+    yaml_path.write_text("demo_mode: false\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings(_yaml_path=yaml_path).demo_mode is False
+
+    monkeypatch.setenv("VOF_DEMO_MODE", "true")
+    assert Settings(_yaml_path=yaml_path).demo_mode is True
+
+
+def _documented_env_names(text: str) -> set[str]:
+    """Return every ``VOF_*`` name in *text*, set or commented out (``# VOF_X=``)."""
+    return set(re.findall(r"^#?\s*(VOF_[A-Z0-9_]+)=", text, flags=re.MULTILINE))
+
+
+def test_env_example_documents_every_setting() -> None:
+    """``.env.example`` lists every ``Settings`` field, so it cannot drift."""
+    text = (_REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    expected = {f"VOF_{name.upper()}" for name in Settings.model_fields}
+    assert _documented_env_names(text) == expected
+
+
+def test_copied_env_example_matches_the_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``cp .env.example .env`` gives exactly the built-in defaults: demo mode."""
+    monkeypatch.chdir(tmp_path)
+    defaults = Settings()
+    _write_env(tmp_path, (_REPO_ROOT / ".env.example").read_text(encoding="utf-8"))
+
+    from_example = Settings()
+
+    assert from_example == defaults
+    assert from_example.api_token is None
+    assert from_example.adapter == "mock"
 
 
 def test_bp_bounds_default_when_unset(
@@ -97,7 +170,7 @@ def test_bp_bounds_default_when_unset(
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.bp_systolic_min == 50.0
     assert settings.bp_systolic_max == 250.0
@@ -119,7 +192,7 @@ def test_bp_bounds_load_from_env_file(
     )
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.bp_systolic_min == 80.0
     assert settings.bp_systolic_max == 200.0
@@ -134,7 +207,7 @@ def test_spo2_bounds_default_when_unset(
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.spo2_min == 70.0
     assert settings.spo2_max == 100.0
@@ -152,7 +225,7 @@ def test_spo2_bounds_load_from_env_file(
     )
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.spo2_min == 85.0
     assert settings.spo2_max == 99.0
@@ -165,7 +238,7 @@ def test_temp_bounds_default_when_unset(
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.temp_min == 10.0
     assert settings.temp_max == 47.0
@@ -183,7 +256,7 @@ def test_temp_bounds_load_from_env_file(
     )
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.temp_min == 15.0
     assert settings.temp_max == 45.0
@@ -196,7 +269,7 @@ def test_weight_bounds_default_when_unset(
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.weight_min == 2.0
     assert settings.weight_max == 650.0
@@ -214,7 +287,7 @@ def test_weight_bounds_load_from_env_file(
     )
     monkeypatch.chdir(tmp_path)
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert settings.weight_min == 3.0
     assert settings.weight_max == 500.0
@@ -231,7 +304,7 @@ def test_unknown_vof_variable_is_rejected(
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(ValueError):
-        Settings()  # type: ignore[call-arg]
+        Settings()
 
 
 # --- config.yaml source, precedence, and timezone (spec/config-file, Task 1.1) ---

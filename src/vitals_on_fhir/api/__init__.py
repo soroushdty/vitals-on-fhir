@@ -2,12 +2,17 @@
 """Public API for the ``api`` package — HTTP routes and authentication."""
 
 from vitals_on_fhir.api.app import create_app
-from vitals_on_fhir.api.auth import Authenticator, StaticTokenAuthenticator
+from vitals_on_fhir.api.auth import (
+    AnonymousAuthenticator,
+    Authenticator,
+    StaticTokenAuthenticator,
+)
 
 __all__ = [
     # ABCs
     "Authenticator",
     # Concrete defaults
+    "AnonymousAuthenticator",
     "StaticTokenAuthenticator",
     "create_app",
 ]

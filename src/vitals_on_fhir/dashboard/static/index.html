@@ -14,9 +14,16 @@
   </header>
 
   <main>
-    <!-- Token entry: the token is used for the WebSocket connection. -->
+    <!-- Token entry: the token is used for the WebSocket connection. In demo
+         mode (no token set on the server) app.js shows the note instead. -->
     <section class="card" aria-labelledby="connect-heading">
       <h2 id="connect-heading">Connect</h2>
+      <p class="demo-note" id="demo-note" hidden>
+        <strong>Demo mode.</strong>
+        The server has no access token set, so this page shows simulated data only
+        and connects without one. Set <code>VOF_API_TOKEN</code> on the server to use
+        a real device.
+      </p>
       <form id="connect-form" autocomplete="off">
         <label for="token-input">Access token</label>
         <input

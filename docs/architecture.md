@@ -33,7 +33,7 @@ Every extension point is an abstract base class (ABC). The project ships concret
 | **FHIR mappers** | `VitalMapper` | `ScalarVitalMapper`, `ComponentVitalMapper` |
 | **Stores** | `ObservationStore` | `InMemoryObservationStore` |
 | **Output sinks** | `ObservationSink` | `InMemoryObservationStore`, `DashboardBroadcaster` |
-| **Authentication** | `Authenticator` | `StaticTokenAuthenticator` |
+| **Authentication** | `Authenticator` | `StaticTokenAuthenticator`, `AnonymousAuthenticator` (demo mode only) |
 
 ### Vital signs
 
@@ -95,7 +95,7 @@ vitals-on-fhir/
 │   ├── fhir/            # VitalMapper ABC + mappers, Device/Patient/CapabilityStatement builders
 │   ├── pipeline/        # ObservationSink ABC, orchestration (adapter → validators → mapper → sinks)
 │   ├── store/           # ObservationStore ABC + InMemoryObservationStore
-│   ├── api/             # Read-only FHIR REST API, Authenticator ABC + StaticTokenAuthenticator
+│   ├── api/             # Read-only FHIR REST API, Authenticator ABC + StaticTokenAuthenticator, AnonymousAuthenticator
 │   ├── dashboard/       # Static dashboard + DashboardBroadcaster sink
 │   ├── config.py        # Settings
 │   └── cli.py           # Composition root: wires concrete classes together

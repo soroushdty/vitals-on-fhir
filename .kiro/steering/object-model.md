@@ -267,13 +267,21 @@ class ObservationStore(ABC):
 
 ```python
 class Authenticator(ABC):
+    requires_credentials: bool = True
+
     @abstractmethod
     def authenticate(self, credentials: str) -> bool: ...
 ```
 
+`requires_credentials = False` means requests without credentials are accepted: the API skips the token check, and the public `GET /status` tells the dashboard not to ask for a token.
+
 ### `StaticTokenAuthenticator` (concrete)
 
 Compares `credentials` to `VOF_API_TOKEN` using a constant-time comparison. SMART on FHIR is roadmap.
+
+### `AnonymousAuthenticator` (concrete)
+
+Accepts every request (`requires_credentials = False`). `cli.py` uses it only in demo mode: no `VOF_API_TOKEN`, `demo_mode` on, and a mock adapter. A real device without a token is a startup error, never a fallback to this class.
 
 Route functions are plain `async def`. Store and authenticator are injected via `FastAPI.Depends()`.
 

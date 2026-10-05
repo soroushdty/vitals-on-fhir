@@ -46,7 +46,7 @@ Remote access is a roadmap item. Do not imply it is supported in any documentati
 | FR-9 | Mock data support: `MockAdapter`, a concrete adapter producing simulated vital signs so the full pipeline can be developed and tested without hardware. |
 | FR-10 | Automated dashboard updates: server push via WebSocket; no page reload. |
 | FR-11 | Read-only FHIR REST API: `GET /fhir/metadata` (CapabilityStatement), `GET /fhir/Observation` (search: `code`, `date`, `_sort=-date`, `_count`; returns a searchset Bundle), `GET /fhir/Observation/{id}`, `GET /fhir/Patient/{id}`, `GET /fhir/Device/{id}`. Content-type `application/fhir+json`. No write operations in the MVP. |
-| FR-12 | Token authentication: a single configured bearer token (`VOF_API_TOKEN`) is required for every API request and for the dashboard WebSocket. Reject missing or invalid tokens with a FHIR OperationOutcome. |
+| FR-12 | Token authentication: a single configured bearer token (`VOF_API_TOKEN`) is required for every API request and for the dashboard WebSocket. Reject missing or invalid tokens with a FHIR OperationOutcome. Exception, demo mode: with no token configured and `demo_mode` on (the default), a mock adapter runs with authentication off. A real device without a token is a startup error. |
 | FR-13 | Extensibility: vital-sign types, device adapters, validators, FHIR mappers, stores, output sinks, and authenticators are all abstract base classes that consumers can subclass. Third-party adapters are selectable by fully qualified class path without modifying the repository. |
 
 ## Non-functional requirements
@@ -57,7 +57,7 @@ Remote access is a roadmap item. Do not imply it is supported in any documentati
 | NFR-2 | Reliability: detect disconnection; reconnect and resume automatically. |
 | NFR-3 | Usability: dashboard understandable by non-technical users. |
 | NFR-4 | Interoperability: FHIR R4 (4.0.1), US Core vital-signs profiles, LOINC, UCUM. Generated resources must validate. |
-| NFR-5 | Security: token auth; bind to 127.0.0.1 by default; no secrets in code or logs; no measurement values in logs above DEBUG level. |
+| NFR-5 | Security: token auth (demo mode, simulated data only, excepted); bind to 127.0.0.1 by default; no secrets in code or logs; no measurement values in logs above DEBUG level. |
 | NFR-6 | Maintainability: architecture rules are enforced by automated tests (dependency directions, ABC contracts), not only by documentation. |
 
 ## MVP scope

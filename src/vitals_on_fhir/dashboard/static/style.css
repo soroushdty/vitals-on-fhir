@@ -68,6 +68,11 @@ form {
   align-items: end;
 }
 
+/* The display rule above would otherwise override the hidden attribute (demo mode). */
+form[hidden] {
+  display: none;
+}
+
 label {
   display: block;
   font-weight: 600;
@@ -216,6 +221,15 @@ button:disabled {
   border-left: 4px solid var(--warning-border);
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+/* Shown instead of the token form when the server runs in demo mode. */
+.demo-note {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning-border);
+  border-radius: 4px;
 }
 
 /* Mock-device scenario picker. */

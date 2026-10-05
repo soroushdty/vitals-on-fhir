@@ -20,18 +20,20 @@ The MVP acquires real-time heart rate via the standard Bluetooth Heart Rate Serv
 git clone https://github.com/soroushdty/vitals-on-fhir.git
 cd vitals-on-fhir
 uv sync
-cp .env.example .env          # then set VOF_API_TOKEN
+cp .env.example .env          # optional; set VOF_API_TOKEN here to use a real device
 ```
 
-**Run with simulated data (no device needed):**
+**Run with simulated data (no device or token needed):**
 
 ```bash
-uv run vitals-on-fhir --adapter mock
+uv run vitals-on-fhir
 ```
+
+With no `VOF_API_TOKEN` set, the service starts in **demo mode**: it runs the mock adapter (`mock`, or another `mock-*` adapter you choose), the API and dashboard need no token, and a startup warning says so. A real device always needs a token: `--adapter miband10` without one stops with an error instead of falling back to simulated data. Turn demo mode off with `--no-demo` (or `VOF_DEMO_MODE=false`, or `demo_mode: false` in `config.yaml`) to make a missing token a startup error.
 
 ### Using the MVP
 
-Once the service is running, open **`http://127.0.0.1:8000/`** in a browser, enter your `VOF_API_TOKEN`, and you'll see the live heart rate, the observation timestamp, and the connection status update in real time.
+Once the service is running, open **`http://127.0.0.1:8000/`** in a browser, enter your `VOF_API_TOKEN` (in demo mode the page connects without asking), and you'll see the live heart rate, the observation timestamp, and the connection status update in real time.
 
 With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel with a dropdown of scenarios, grouped as:
 
@@ -39,13 +41,13 @@ With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel
 - **Rhythm episodes:** paroxysmal AF, supraventricular tachycardia (SVT), atrial flutter. Each starts normal, then the event begins and ends abruptly.
 - **Activity and device:** exercise and recovery (a repeating ~2 minute ramp), an off-wrist sensor (readings are rejected and the dashboard says no valid reading has arrived), and a disconnect and reconnect (the dashboard shows the dropout and recovers on its own).
 
-Pick a scenario and press **Simulate**: it starts from the beginning and clears everything from the previous run (the chart, the readings, and the Observations the service had stored, so `/fhir/Observation` shows only the new run). Pressing it again restarts the same scenario. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same start is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` starts one. These paths only exist for the mock adapter.
+Pick a scenario and press **Simulate**: it starts from the beginning and clears everything from the previous run (the chart, the readings, and the Observations the service had stored, so `/fhir/Observation` shows only the new run). Pressing it again restarts the same scenario. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same start is available over HTTP (with your token, if one is set): `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` starts one. These paths only exist for the mock adapter.
 
 **Run with a Xiaomi Smart Band 10:**
 
 1. Enable heart-rate broadcast on the band (a heart-rate sharing setting; its location varies by firmware).
 2. Make sure the band isn't connected to another app that holds its only BLE connection.
-3. Start the service:
+3. Set `VOF_API_TOKEN` in `.env` (real devices require it) and start the service:
 
 ```bash
 uv run vitals-on-fhir --adapter miband10
@@ -59,7 +61,7 @@ uv run vitals-on-fhir --adapter mypackage.adapters.MyStrapAdapter
 
 ## FHIR API
 
-A local, **read-only** FHIR REST API serves the stored Observations. Every request requires `Authorization: Bearer <token>`, responses use `application/fhir+json`, and search results are FHIR `Bundle`s (`type: searchset`).
+A local, **read-only** FHIR REST API serves the stored Observations. Every request requires `Authorization: Bearer <token>` (except in demo mode, where no token is set), responses use `application/fhir+json`, and search results are FHIR `Bundle`s (`type: searchset`).
 
 ```bash
 curl -H "Authorization: Bearer $VOF_API_TOKEN" \
@@ -74,10 +76,11 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 
 | Variable | Default | Description |
 |---|---|---|
-| `VOF_API_TOKEN` | *(required)* | Token for the API and dashboard |
+| `VOF_API_TOKEN` | *(none)* | Token for the API and dashboard. Required for a real device; without it the service runs in demo mode |
+| `VOF_DEMO_MODE` | `true` | With no token, run a mock adapter without authentication. `false` (or `--no-demo`) makes a missing token a startup error |
 | `VOF_HOST` | `127.0.0.1` | Bind address. Localhost by default |
 | `VOF_PORT` | `8000` | HTTP port |
-| `VOF_ADAPTER` | `mock` | `mock`, `miband10`, or a fully qualified class path (`package.module.ClassName`) |
+| `VOF_ADAPTER` | `mock` | `mock`, `mock-bp`, `mock-spo2`, `mock-temp`, `mock-weight` (simulated); `miband10`, `bp`, `spo2`, `temp`, `weight`, or a fully qualified class path (`package.module.ClassName`) (real devices) |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
 | `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
@@ -94,7 +97,7 @@ uv run ruff format .           # format
 uv run mypy src                # type check
 ```
 
-- **CI** (GitHub Actions) runs lint, type checks, and the fast test suite on every push and pull request.
+- **CI** (GitHub Actions) runs lint, type checks, and the fast test suite on every pull request.
 - **Architecture is enforced by tests**, not just documentation (for example, adapters may not import FHIR code).
 - **`CHANGELOG.md`** records significant changes: implemented specs, public API changes, config changes, and steering updates.
 
@@ -111,7 +114,7 @@ See [docs/architecture.md](docs/architecture.md) for how the pipeline works, the
 
 ## Security & privacy
 
-- The API and dashboard require a bearer token. The service binds to `127.0.0.1` by default.
+- The API and dashboard require a bearer token. The one exception is demo mode (no token set), which serves only simulated data; a real device never runs without a token. The service binds to `127.0.0.1` by default; in demo mode on another address, anyone who can reach it can open the dashboard and change the simulated scenario.
 - Observations are kept **in memory only** in the MVP and are lost on restart.
 - The Bluetooth Heart Rate Service is **unauthenticated**: while broadcast is enabled, any nearby device can read the heart-rate stream. Disable broadcast when not in use.
 - The MVP is not designed for exposure to untrusted networks and is not HIPAA-compliant. Don't use it with real patient data in production settings.

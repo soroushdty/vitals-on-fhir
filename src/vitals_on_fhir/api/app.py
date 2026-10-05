@@ -98,10 +98,13 @@ def create_app(
     - mounts the dashboard static assets at ``/`` when *static_dir* exists
       (FR-5); mounting is defensive — a missing directory is created so an
       empty dashboard does not crash startup (task 11.2 populates it);
+    - registers the public ``/status`` endpoint, which tells the dashboard
+      whether it needs a token (``false`` in demo mode);
     - registers the ``/ws`` dashboard WebSocket endpoint, validating the token
       from the ``?token=`` query parameter with the shared ``Authenticator``
       **before** ``accept()`` and closing unauthenticated sockets with code
-      ``1008`` — the token is never logged (FR-12.2, NFR-5).
+      ``1008`` — the token is never logged (FR-12.2, NFR-5).  An authenticator
+      that does not require credentials (demo mode) accepts every socket.
 
     Args:
         store: The observation store serving FHIR reads and receiving pushes.
@@ -142,12 +145,31 @@ def create_app(
     if scenario_control is not None:
         app.include_router(mock_control.build_router(scenario_control))
 
+    _register_status(app, authenticator=authenticator)
     _register_websocket(app, authenticator=authenticator, broadcaster=broadcaster)
 
     if static_dir is not None:
         _mount_static(app, static_dir)
 
     return app
+
+
+def _register_status(app: FastAPI, *, authenticator: Authenticator) -> None:
+    """Register the public ``GET /status`` endpoint on *app*.
+
+    Tells the dashboard, before it has a token, whether it needs one:
+    ``{"auth_required": false}`` means demo mode, so the page connects straight
+    away instead of asking for a token.  It reveals nothing else.
+
+    Args:
+        app: The FastAPI app to register the endpoint on.
+        authenticator: The authenticator whose ``requires_credentials`` is reported.
+    """
+
+    @app.get("/status")
+    async def status() -> dict[str, bool]:
+        """Report whether API and dashboard requests need a token."""
+        return {"auth_required": authenticator.requires_credentials}
 
 
 def _register_websocket(
@@ -177,7 +199,9 @@ def _register_websocket(
     async def dashboard_ws(websocket: WebSocket) -> None:
         """Authenticate and hold open a dashboard WebSocket connection."""
         token = websocket.query_params.get("token", "")
-        if not token or not authenticator.authenticate(token):
+        if authenticator.requires_credentials and (
+            not token or not authenticator.authenticate(token)
+        ):
             # Reject before accepting the handshake; never log the token.
             logger.info("Rejecting unauthenticated dashboard WebSocket connection")
             await websocket.close(code=_WS_POLICY_VIOLATION)

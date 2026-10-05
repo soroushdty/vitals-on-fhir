@@ -11,6 +11,14 @@ inclusion: always
 - Missing or invalid tokens must be rejected with HTTP 401 and a FHIR `OperationOutcome` (issue code `"security"`). Do not return 403 — the client has not authenticated.
 - `StaticTokenAuthenticator` is the MVP implementation. SMART on FHIR is a roadmap item; do not stub or reference it in the MVP code.
 
+### Demo mode (the one exception)
+
+- With no `VOF_API_TOKEN` and `demo_mode` on (the default), the service runs a mock adapter (`mock`, `mock-*`) with `AnonymousAuthenticator`: no token is needed, because the data is simulated.
+- A real device (any non-mock adapter, including third-party class paths) without a token must fail at startup. Never fall back to the mock silently: simulated readings must not be mistaken for real ones.
+- Demo mode logs a startup warning, and a second one when `VOF_HOST` is not a loopback address.
+- `demo_mode: false` (or `--no-demo`) restores the strict rule: a missing token is a startup error.
+- An empty `VOF_API_TOKEN=` counts as no token, never as an empty password.
+
 ## Network binding
 
 - The service binds to `127.0.0.1` by default (`VOF_HOST`). This is a security default, not a convenience default. Remote access is a roadmap item; the MVP must not be exposed to untrusted networks.
@@ -23,7 +31,7 @@ Rules that apply to all code in this repository:
 
 - `VOF_API_TOKEN` must never appear in any log message at any level, in any exception message, in any error response body, or in any comment or test fixture that is committed to the repository.
 - No secrets in source code. Use `.env` loaded at runtime; never hardcode token values.
-- Never commit a populated `.env` file. The `.env.example` must contain only placeholder values (e.g. `VOF_API_TOKEN=change-me`).
+- Never commit a populated `.env` file. The `.env.example` must contain only placeholder values; its `VOF_API_TOKEN` line stays commented out (`# VOF_API_TOKEN=change-me`), so an unedited copy runs in demo mode instead of behind a published token.
 - In tests, use a synthetic token value (e.g. `"test-token-do-not-use"`) — never a real credential.
 - Do not log config values at startup even at `DEBUG` level (they may contain the token).
 
