@@ -11,18 +11,24 @@ The `mock` adapter now simulates named heart rhythms that you switch between wit
 dashboard, and the dashboard shows a live chart and a correct connection status for clients that
 connect after the device.
 
-- Added: `HeartRateScenario` (`NORMAL_SINUS_RHYTHM`, `SINUS_BRADYCARDIA`, `SINUS_TACHYCARDIA`,
-  `ATRIAL_FIBRILLATION`) and `HeartRateScenarioControl` in `adapters/builtin/mock.py`;
-  `MockAdapter` takes `scenario` and `rng` and has a settable `scenario` property. Regular
-  rhythms are a mean-reverting walk that glides when switched; AF draws each reading
-  independently. Without a `scenario` it still emits a fixed 72 bpm, so existing tests and callers
-  are unaffected
-- Added: token-protected `GET /mock/scenarios` and `PUT /mock/scenario` (`api/mock_control.py`),
+- Added: `adapters/builtin/hr_scenarios.py` — `HeartRateScenario` (steady: `NORMAL_SINUS_RHYTHM`,
+  `SINUS_BRADYCARDIA`, `SINUS_TACHYCARDIA`, `ATRIAL_FIBRILLATION`; episodes: `PAROXYSMAL_AF`, `SVT`,
+  `ATRIAL_FLUTTER`, `PVC`; other: `EXERCISE_RAMP`, `OFF_WRIST`, `DISCONNECT_RECONNECT`) and
+  `ScenarioEngine`. Regular rhythms are a mean-reverting walk that glides when switched; AF draws
+  each reading independently; episodes start normal and change abruptly; exercise loops a ramp
+- Added: `MockAdapter` takes `scenario`, `rng` and `on_state_change`, has a settable `scenario`
+  property, and `HeartRateScenarioControl` exposes the options. Off-wrist readings carry
+  `sensor_contact=False` (the validator rejects them); a dropout reports `RECONNECTING` then
+  `CONNECTED` and yields nothing in between. Without a `scenario` it still emits a fixed 72 bpm, so
+  existing tests and callers are unaffected
+- Added: token-protected `GET /mock/scenarios` (id, label, description, group) and
+  `PUT /mock/scenario` (`api/mock_control.py`),
   registered only when `create_app(scenario_control=...)` is given, i.e. only with `--adapter mock`
 - Added: `VOF_MOCK_INTERVAL` (default `1.0` s) config variable; started from the CLI, the `mock`
   adapter now emits one reading per second (was one per 10 ms)
-- Added: dashboard "Simulate a heart rhythm" panel (shown only for the mock adapter) and a live
-  two-minute heart-rate chart with lowest/average/highest in `dashboard/static`
+- Added: dashboard "Simulate a heart rhythm" panel (shown only for the mock adapter), a live
+  two-minute heart-rate chart with lowest/average/highest, and a "no new valid reading" notice
+  when the device is connected but silent for 8 seconds, all in `dashboard/static`
 - Changed: `DashboardBroadcaster.register` sends the last known `connection_state` to a newly
   connected client, and the dashboard marks the device connected when a reading arrives
 - Changed: dashboard static files are served with `Cache-Control: no-cache` so an upgraded

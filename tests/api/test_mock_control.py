@@ -58,7 +58,7 @@ def test_lists_scenarios_and_the_active_one() -> None:
     body = response.json()
     assert body["current"] == "normal_sinus_rhythm"
     assert [s["id"] for s in body["scenarios"]] == [s.value for s in HeartRateScenario]
-    assert {"id", "label", "description"} == set(body["scenarios"][0])
+    assert {"id", "label", "description", "group"} == set(body["scenarios"][0])
 
 
 def test_put_switches_the_adapter_scenario() -> None:

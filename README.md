@@ -33,7 +33,13 @@ uv run vitals-on-fhir --adapter mock
 
 Once the service is running, open **`http://127.0.0.1:8000/`** in a browser, enter your `VOF_API_TOKEN`, and you'll see the live heart rate, the observation timestamp, and the connection status update in real time.
 
-With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel: normal sinus rhythm, sinus bradycardia, sinus tachycardia, or atrial fibrillation. Switching glides smoothly from the current rate. It imitates the heart *rate* only (no ECG) and is not a diagnosis. The same switch is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` selects one. These paths only exist for the mock adapter.
+With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel with buttons for:
+
+- **Steady rhythms:** normal sinus rhythm, sinus bradycardia, sinus tachycardia, atrial fibrillation.
+- **Rhythm episodes:** paroxysmal AF, supraventricular tachycardia (SVT), atrial flutter, occasional PVCs. Each starts normal, then the event begins and ends abruptly.
+- **Activity and device:** exercise and recovery (a repeating ~2 minute ramp), an off-wrist sensor (readings are rejected and the dashboard says no valid reading has arrived), and a disconnect and reconnect (the dashboard shows the dropout and recovers on its own).
+
+Switching glides smoothly from the current rate. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same switch is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` selects one. These paths only exist for the mock adapter.
 
 **Run with a Xiaomi Smart Band 10:**
 

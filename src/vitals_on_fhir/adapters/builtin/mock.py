@@ -12,12 +12,17 @@ from __future__ import annotations
 import asyncio
 import enum
 import random
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar
 
 from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.builtin.hr_scenarios import (
+    HeartRateScenario,
+    ScenarioEngine,
+    Tick,
+    scenario_infos,
+)
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
@@ -28,7 +33,8 @@ from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 _DEFAULT_INTERVAL = 0.01  # seconds between yields; small so tests stay fast
 _VALID_HEART_RATE = 72.0  # bpm, comfortably inside the plausible range
 _IMPLAUSIBLE_HEART_RATE = 300.0  # bpm, above the default plausible upper bound
-_HR_PULL = 0.2  # per-reading pull toward a scenario's mean; sets how fast a switch glides
+# Connection states in which the mock keeps its stream open (RECONNECTING = a simulated dropout).
+_ACTIVE_STATES = (ConnectionState.CONNECTED, ConnectionState.RECONNECTING)
 
 
 class EmissionMode(enum.Enum):
@@ -44,81 +50,6 @@ class EmissionMode(enum.Enum):
     NO_SENSOR_CONTACT = "no_sensor_contact"
 
 
-class HeartRateScenario(enum.Enum):
-    """A simulated heart-rate pattern that ``MockAdapter`` can be switched to.
-
-    These imitate how the *rate* behaves in each rhythm.  The mock emits one
-    beats-per-minute value per reading, so it cannot reproduce an ECG; it is a
-    demonstration signal, not a diagnosis.
-    """
-
-    NORMAL_SINUS_RHYTHM = "normal_sinus_rhythm"
-    SINUS_BRADYCARDIA = "sinus_bradycardia"
-    SINUS_TACHYCARDIA = "sinus_tachycardia"
-    ATRIAL_FIBRILLATION = "atrial_fibrillation"
-
-
-@dataclass(frozen=True)
-class _ScenarioProfile:
-    """How a scenario's heart rate behaves.
-
-    Attributes:
-        label: Human-readable name shown on the dashboard.
-        description: One-line summary shown under the label.
-        mean: Rate (bpm) the series settles around.
-        low: Lowest whole-bpm value emitted once settled.
-        high: Highest whole-bpm value emitted once settled.
-        step: Standard deviation (bpm) of the per-reading noise.
-        irregular: ``True`` for beat-to-beat chaos (each reading drawn
-            independently); ``False`` for a smooth, mean-reverting walk.
-    """
-
-    label: str
-    description: str
-    mean: float
-    low: int
-    high: int
-    step: float
-    irregular: bool = False
-
-
-_SCENARIO_PROFILES: dict[HeartRateScenario, _ScenarioProfile] = {
-    HeartRateScenario.NORMAL_SINUS_RHYTHM: _ScenarioProfile(
-        label="Normal sinus rhythm",
-        description="60-100 bpm, steady and regular",
-        mean=72.0,
-        low=60,
-        high=100,
-        step=1.2,
-    ),
-    HeartRateScenario.SINUS_BRADYCARDIA: _ScenarioProfile(
-        label="Sinus bradycardia",
-        description="Below 60 bpm, steady and regular",
-        mean=50.0,
-        low=38,
-        high=59,
-        step=1.0,
-    ),
-    HeartRateScenario.SINUS_TACHYCARDIA: _ScenarioProfile(
-        label="Sinus tachycardia",
-        description="Above 100 bpm, steady and regular",
-        mean=118.0,
-        low=101,
-        high=150,
-        step=1.8,
-    ),
-    HeartRateScenario.ATRIAL_FIBRILLATION: _ScenarioProfile(
-        label="Atrial fibrillation",
-        description="Fast and irregularly irregular, jumping beat to beat",
-        mean=125.0,
-        low=70,
-        high=180,
-        step=22.0,
-        irregular=True,
-    ),
-}
-
-
 class MockAdapter(DeviceAdapter):
     """Simulated device adapter that emits synthetic heart-rate readings.
 
@@ -128,8 +59,9 @@ class MockAdapter(DeviceAdapter):
     are yielded (``None`` yields indefinitely until disconnected), and
     ``interval`` sets the cooperative delay between yields. With a ``scenario``
     set, ``VALID`` readings follow that :class:`HeartRateScenario` (and it can be
-    changed while running) instead of repeating one fixed value. Never imports
-    ``bleak``.
+    changed while running) instead of repeating one fixed value; scenarios can
+    also flag lost sensor contact or drop the simulated connection, reported
+    through ``on_state_change`` like a real device. Never imports ``bleak``.
     """
 
     supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (HeartRate,)
@@ -142,6 +74,7 @@ class MockAdapter(DeviceAdapter):
         count: int | None = None,
         scenario: HeartRateScenario | None = None,
         rng: random.Random | None = None,
+        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
     ) -> None:
         """Create a mock adapter.
 
@@ -155,13 +88,17 @@ class MockAdapter(DeviceAdapter):
                 emit a fixed 72 bpm.
             rng: Random source for variable readings; pass a seeded
                 ``random.Random`` for reproducible output.
+            on_state_change: Optional async callback invoked on every
+                connection-state change, as the BLE adapters do.
         """
         self._emission_mode = emission_mode
         self._interval = interval
         self._count = count
         self._scenario = scenario
-        self._rng = rng if rng is not None else random.Random()
-        self._hr: float | None = None
+        self._engine = ScenarioEngine(rng if rng is not None else random.Random())
+        if scenario is not None:
+            self._engine.select(scenario)
+        self._on_state_change = on_state_change
         self._state = ConnectionState.DISCONNECTED
 
     @property
@@ -182,11 +119,18 @@ class MockAdapter(DeviceAdapter):
     def scenario(self, scenario: HeartRateScenario) -> None:
         """Switch to *scenario*; the next reading follows it, gliding from the last rate."""
         self._scenario = scenario
+        self._engine.select(scenario)
 
     @property
     def state(self) -> ConnectionState:
         """Return the current simulated connection state."""
         return self._state
+
+    async def _set_state(self, state: ConnectionState) -> None:
+        """Record *state* and report it through ``on_state_change``."""
+        self._state = state
+        if self._on_state_change is not None:
+            await self._on_state_change(state)
 
     async def connect(self) -> None:
         """Simulate connecting to the mock device.
@@ -194,30 +138,47 @@ class MockAdapter(DeviceAdapter):
         Transitions ``CONNECTING`` then ``CONNECTED``, consistent with the
         ``DeviceAdapter`` contract.
         """
-        self._state = ConnectionState.CONNECTING
-        self._state = ConnectionState.CONNECTED
+        await self._set_state(ConnectionState.CONNECTING)
+        await self._set_state(ConnectionState.CONNECTED)
 
     async def disconnect(self) -> None:
         """Simulate disconnecting from the mock device."""
-        self._state = ConnectionState.DISCONNECTED
+        await self._set_state(ConnectionState.DISCONNECTED)
 
     async def vitals(self) -> AsyncIterator[VitalSign]:
         """Yield simulated ``HeartRate`` readings per the configured mode.
 
         Each reading carries a timezone-aware ``effective`` timestamp. Yields
         until ``count`` readings have been produced, or indefinitely while
-        connected when ``count`` is ``None``. A small ``asyncio.sleep`` between
-        yields keeps the generator cooperative.
+        connected when ``count`` is ``None``. During a simulated dropout (state
+        ``RECONNECTING``) the stream stays open but yields nothing. A small
+        ``asyncio.sleep`` between readings keeps the generator cooperative.
         """
         emitted = 0
-        while self._state == ConnectionState.CONNECTED:
+        while self._state in _ACTIVE_STATES:
             if self._count is not None and emitted >= self._count:
                 return
-            yield self._make_reading()
-            emitted += 1
+            reading = await self._next_reading()
+            if reading is not None:
+                yield reading
+                emitted += 1
             await asyncio.sleep(self._interval)
 
-    def _make_reading(self) -> HeartRate:
+    async def _next_reading(self) -> HeartRate | None:
+        """Return the next reading, or ``None`` while the simulated link is down.
+
+        Only ``VALID`` mode with a scenario consults the scenario engine; it may
+        also move the connection between ``CONNECTED`` and ``RECONNECTING``.
+        """
+        if self._scenario is None or self._emission_mode != EmissionMode.VALID:
+            return self._make_reading()
+        tick = self._engine.step()
+        wanted = ConnectionState.CONNECTED if tick.connected else ConnectionState.RECONNECTING
+        if self._state != wanted:
+            await self._set_state(wanted)
+        return self._make_reading(tick) if tick.bpm is not None else None
+
+    def _make_reading(self, tick: Tick | None = None) -> HeartRate:
         """Build a single ``HeartRate`` reading for the configured emission mode."""
         effective = datetime.now(UTC)
         if self._emission_mode == EmissionMode.IMPLAUSIBLE:
@@ -237,33 +198,9 @@ class MockAdapter(DeviceAdapter):
         return HeartRate(
             effective=effective,
             device_id=self._device_id(),
-            value=self._next_heart_rate(),
-            sensor_contact=True,
+            value=tick.bpm if tick is not None and tick.bpm is not None else _VALID_HEART_RATE,
+            sensor_contact=tick.contact if tick is not None else True,
         )
-
-    def _next_heart_rate(self) -> float:
-        """Return the next valid heart rate in bpm for the active scenario.
-
-        Fixed at 72 bpm when no scenario is set.  Regular scenarios use a
-        mean-reverting random walk, so switching from another scenario glides to
-        the new rate over several readings and, once inside its band, never
-        leaves it.  Atrial fibrillation draws every reading independently, so it
-        jumps around from beat to beat.  Values are whole bpm.
-        """
-        if self._scenario is None:
-            return _VALID_HEART_RATE
-        profile = _SCENARIO_PROFILES[self._scenario]
-        if profile.irregular:
-            value = self._rng.gauss(profile.mean, profile.step)
-            self._hr = min(max(value, profile.low), profile.high)
-        else:
-            current = profile.mean if self._hr is None else self._hr
-            pull = _HR_PULL * (profile.mean - current)
-            value = current + pull + self._rng.gauss(0.0, profile.step)
-            if profile.low <= current <= profile.high:
-                value = min(max(value, profile.low), profile.high)
-            self._hr = value
-        return float(round(self._hr))
 
     def _device_id(self) -> str:
         """Return the device identifier used for readings from this adapter."""
@@ -291,10 +228,10 @@ class HeartRateScenarioControl:
         return scenario.value
 
     def options(self) -> list[dict[str, str]]:
-        """Return every selectable scenario as ``{"id", "label", "description"}``."""
+        """Return every scenario as ``{"id", "label", "description", "group"}``."""
         return [
-            {"id": s.value, "label": p.label, "description": p.description}
-            for s, p in _SCENARIO_PROFILES.items()
+            {"id": i.id, "label": i.label, "description": i.description, "group": i.group}
+            for i in scenario_infos()
         ]
 
     def select(self, scenario_id: str) -> None:

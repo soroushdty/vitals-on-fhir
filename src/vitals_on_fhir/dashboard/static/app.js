@@ -45,8 +45,13 @@
   var CHART_PAD = { left: 38, right: 12, top: 12, bottom: 24 };
   var SVG_NS = "http://www.w3.org/2000/svg";
 
+  // Connected but no valid reading for this long: tell the user (e.g. sensor off).
+  var SILENCE_MS = 8000;
+
   var history = []; // [{ t: epoch ms, v: bpm }], oldest first
-  var scenarioOptions = []; // [{ id, label, description }] from /mock/scenarios
+  var scenarioOptions = []; // [{ id, label, description, group }] from /mock/scenarios
+  var deviceLive = false; // true while the device is reported connected
+  var lastReadingAt = null; // epoch ms of the latest valid reading, or null
   var socket = null;
   var reconnectTimer = null;
   var manualClose = false;
@@ -69,6 +74,7 @@
     els.simCard = document.getElementById("sim-card");
     els.simButtons = document.getElementById("sim-buttons");
     els.simStatus = document.getElementById("sim-status");
+    els.readingNote = document.getElementById("reading-note");
   }
 
   function setStatus(text, kind) {
@@ -233,6 +239,22 @@
     return d.toLocaleString();
   }
 
+  // While the device is connected but silent, say so instead of leaving an old
+  // number on screen as if it were current.
+  function updateSilenceNote() {
+    var silentFor = lastReadingAt === null ? 0 : Date.now() - lastReadingAt;
+    if (deviceLive && lastReadingAt !== null && silentFor > SILENCE_MS) {
+      els.readingNote.textContent =
+        "No new valid reading for " +
+        Math.round(silentFor / 1000) +
+        " seconds. The sensor may be off the skin, or readings are being rejected.";
+      els.readingNote.hidden = false;
+      markStale();
+    } else {
+      els.readingNote.hidden = true;
+    }
+  }
+
   function handleObservation(resource) {
     if (!resource || typeof resource !== "object") {
       return;
@@ -247,7 +269,10 @@
 
     // A reading arriving means the device is delivering data, whatever status
     // message we last saw (e.g. one sent before this page connected).
+    deviceLive = true;
+    lastReadingAt = Date.now();
     setStatus(DEVICE_STATE_LABELS.connected, "connected");
+    updateSilenceNote();
 
     if (typeof value === "number" && isFinite(value)) {
       var t = Date.parse(resource.effectiveDateTime);
@@ -258,7 +283,10 @@
 
   function handleConnectionState(state) {
     var label = DEVICE_STATE_LABELS[state] || ("Device state: " + state);
-    if (LIVE_STATES[state]) {
+    deviceLive = !!LIVE_STATES[state];
+    if (deviceLive) {
+      // Start the silence countdown afresh after a (re)connect.
+      lastReadingAt = Date.now();
       setStatus(label, "connected");
       markLive();
     } else {
@@ -296,7 +324,7 @@
   // Highlight the active scenario button and say which one is running.
   function markScenario(id) {
     var label = "";
-    Array.prototype.forEach.call(els.simButtons.children, function (button) {
+    Array.prototype.forEach.call(els.simButtons.querySelectorAll("button"), function (button) {
       var active = button.getAttribute("data-id") === id;
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
@@ -331,7 +359,19 @@
   function renderScenarios(data) {
     scenarioOptions = data.scenarios || [];
     els.simButtons.replaceChildren();
+    var group = null;
+    var grid = null;
     scenarioOptions.forEach(function (option) {
+      if (option.group !== group) {
+        group = option.group;
+        var heading = document.createElement("h3");
+        heading.className = "sim-group";
+        heading.textContent = group;
+        els.simButtons.appendChild(heading);
+        grid = document.createElement("div");
+        grid.className = "sim-grid";
+        els.simButtons.appendChild(grid);
+      }
       var button = document.createElement("button");
       button.type = "button";
       button.className = "sim-button";
@@ -346,7 +386,7 @@
       button.addEventListener("click", function () {
         selectScenario(option.id);
       });
-      els.simButtons.appendChild(button);
+      grid.appendChild(button);
     });
     markScenario(data.current);
     els.simCard.hidden = false;
@@ -462,7 +502,10 @@
     els.form.addEventListener("submit", onSubmit);
     drawChart();
     // Slide the window forward between readings (and across disconnects).
-    window.setInterval(drawChart, CHART_REFRESH_MS);
+    window.setInterval(function () {
+      drawChart();
+      updateSilenceNote();
+    }, CHART_REFRESH_MS);
   }
 
   if (document.readyState === "loading") {

@@ -49,6 +49,9 @@
         Connection status:
         <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
       </p>
+
+      <!-- Shown when the device is connected but nothing valid has arrived for a while. -->
+      <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
     </section>
 
     <!-- Live trend of the last two minutes of readings; drawn by app.js. -->

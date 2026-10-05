@@ -9,11 +9,11 @@ from vitals_on_fhir.adapters.ble import (
 )
 from vitals_on_fhir.adapters.bp_parser import BloodPressureMeasurementParser
 from vitals_on_fhir.adapters.builtin.blood_pressure_ble import BloodPressureBleAdapter
+from vitals_on_fhir.adapters.builtin.hr_scenarios import HeartRateScenario
 from vitals_on_fhir.adapters.builtin.miband10 import MiBand10Adapter
 from vitals_on_fhir.adapters.builtin.mock import (
     BloodPressureEmissionMode,
     EmissionMode,
-    HeartRateScenario,
     HeartRateScenarioControl,
     MockAdapter,
     MockBloodPressureAdapter,

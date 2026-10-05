@@ -15,11 +15,9 @@ import random
 import pytest
 
 from tests.adapters.contract import DeviceAdapterContract
-from vitals_on_fhir.adapters.builtin.mock import (
-    HeartRateScenario,
-    HeartRateScenarioControl,
-    MockAdapter,
-)
+from vitals_on_fhir.adapters.base import ConnectionState
+from vitals_on_fhir.adapters.builtin.hr_scenarios import HeartRateScenario
+from vitals_on_fhir.adapters.builtin.mock import HeartRateScenarioControl, MockAdapter
 
 
 class TestMockAdapterContract(DeviceAdapterContract):
@@ -147,3 +145,83 @@ def test_control_rejects_an_unknown_scenario() -> None:
         control.select("ventricular_tachycardia")
 
     assert control.current == "sinus_bradycardia"
+
+
+# --- Off-wrist and disconnect through the adapter ----------------------------
+
+
+def test_off_wrist_scenario_flags_lost_sensor_contact_on_readings() -> None:
+    """Off-wrist readings carry ``sensor_contact=False``, so the validator chain rejects them."""
+    adapter = MockAdapter(
+        count=120, scenario=HeartRateScenario.OFF_WRIST, interval=0, rng=random.Random(1)
+    )
+
+    async def readings() -> list[bool | None]:
+        await adapter.connect()
+        return [r.sensor_contact async for r in adapter.vitals()]  # type: ignore[attr-defined]
+
+    contact = asyncio.run(readings())
+
+    assert contact[:10] == [True] * 10
+    assert False in contact and contact.count(True) > 20
+
+
+def test_disconnect_scenario_reports_a_dropout_and_goes_quiet() -> None:
+    """The mock reports RECONNECTING then CONNECTED, and yields nothing in between."""
+    events: list[str] = []
+
+    async def record(state: ConnectionState) -> None:
+        events.append(state.value)
+
+    adapter = MockAdapter(
+        count=60,
+        scenario=HeartRateScenario.DISCONNECT_RECONNECT,
+        interval=0,
+        rng=random.Random(1),
+        on_state_change=record,
+    )
+
+    async def run() -> None:
+        await adapter.connect()
+        async for _ in adapter.vitals():
+            events.append("reading")
+
+    asyncio.run(run())
+
+    assert events[:3] == ["connecting", "connected", "reading"]
+    assert "reconnecting" in events
+    drop = events.index("reconnecting")
+    back = events.index("connected", drop)
+    assert "reading" not in events[drop:back]  # silent while the link is down
+    assert events[back + 1] == "reading"  # and resumes on its own
+    assert events.count("reading") == 60
+
+
+def test_switching_away_from_a_dropout_restores_the_connection() -> None:
+    """Picking another scenario while the link is down reconnects on the very next tick."""
+    states: list[ConnectionState] = []
+
+    async def on_state(state: ConnectionState) -> None:
+        states.append(state)
+        if state == ConnectionState.RECONNECTING:
+            # What the dashboard's PUT does mid-dropout.
+            adapter.scenario = HeartRateScenario.NORMAL_SINUS_RHYTHM
+
+    adapter = MockAdapter(
+        count=60,
+        scenario=HeartRateScenario.DISCONNECT_RECONNECT,
+        interval=0,
+        rng=random.Random(1),
+        on_state_change=on_state,
+    )
+
+    async def run() -> None:
+        await adapter.connect()
+        async for _ in adapter.vitals():
+            pass
+
+    asyncio.run(run())
+
+    drop = states.index(ConnectionState.RECONNECTING)
+    assert states[drop + 1] == ConnectionState.CONNECTED  # straight back, not after 8-12 ticks
+    assert states.count(ConnectionState.RECONNECTING) == 1  # and no further dropouts

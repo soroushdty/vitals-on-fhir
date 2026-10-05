@@ -124,7 +124,10 @@ def _resolve_config_path(argv: list[str] | None = None) -> Path:
 
 
 def _resolve_adapter(
-    adapter_spec: str, settings: Settings, tz: tzinfo | None = None
+    adapter_spec: str,
+    settings: Settings,
+    tz: tzinfo | None = None,
+    on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
 ) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
 
@@ -144,6 +147,8 @@ def _resolve_adapter(
             timestamp, forwarded to the three timestamp-decoding BLE adapters
             (``bp``, ``temp``, ``weight``).  ``None`` preserves host-local
             behavior (FR-CFG-4, design §4).
+        on_state_change: Coroutine the ``mock`` adapter calls on every simulated
+            connection-state change (e.g. a dropout), so the dashboard can show it.
 
     Returns:
         An instantiated ``DeviceAdapter``.
@@ -157,6 +162,7 @@ def _resolve_adapter(
         return MockAdapter(
             scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM,
             interval=settings.mock_interval,
+            on_state_change=on_state_change,
         )
     if adapter_spec == "mock-bp":
         return MockBloodPressureAdapter()
@@ -273,7 +279,9 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     # Resolve the configured zone once at startup; threaded to the three
     # timestamp-decoding BLE adapters (FR-CFG-4, design §4).
     tz = resolve_timezone(settings.timezone)
-    adapter = _resolve_adapter(adapter_spec, settings, tz)
+    broadcaster = DashboardBroadcaster()
+    # The mock reports simulated dropouts through this callback, as BLE adapters do.
+    adapter = _resolve_adapter(adapter_spec, settings, tz, broadcaster.on_state_change)
 
     device = build_device(adapter.device_info)
     patient = build_patient(settings.patient_id)
@@ -281,7 +289,6 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     device_ref = f"Device/{device.id}"
 
     store = InMemoryObservationStore(settings.store_max)
-    broadcaster = DashboardBroadcaster()
 
     sinks: list[ObservationSink] = [store, broadcaster]
     orchestrator = _build_orchestrator(

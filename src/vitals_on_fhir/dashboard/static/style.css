@@ -209,14 +209,36 @@ button:disabled {
   font-weight: 700;
 }
 
+.reading-note {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning-border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
 /* Mock-device rhythm picker. */
+.sim-group {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sim-group:first-of-type {
+  margin-top: 0;
+}
+
 .sim-note {
   margin: 0 0 0.75rem;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.sim-buttons {
+.sim-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.6rem;
