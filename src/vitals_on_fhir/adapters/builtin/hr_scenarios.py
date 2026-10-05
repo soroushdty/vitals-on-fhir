@@ -26,7 +26,7 @@ import enum
 import random
 from dataclasses import dataclass
 
-_PULL = 0.2  # per-reading pull toward the target rate; sets how fast a switch glides
+_PULL = 0.2  # per-reading pull toward the target rate; sets how closely it tracks a ramp
 
 
 class HeartRateScenario(enum.Enum):
@@ -226,8 +226,8 @@ def _clamp(value: float, low: float, high: float) -> float:
 class ScenarioEngine:
     """Produces one :class:`Tick` per reading for the selected scenario.
 
-    The rate carries over when the scenario is switched, so a regular rhythm
-    glides from the old rate to the new one instead of jumping.
+    Selecting a scenario always starts it from the beginning, with nothing
+    carried over from the previous one.
     """
 
     def __init__(self, rng: random.Random) -> None:
@@ -241,9 +241,10 @@ class ScenarioEngine:
         self._tick = 0  # readings spent in the current phase
 
     def select(self, scenario: HeartRateScenario) -> None:
-        """Switch to *scenario*, starting at its first phase on the next :meth:`step`."""
+        """Start *scenario* from the beginning: its first phase, at its own resting rate."""
         self._scenario = scenario
         self._started = False
+        self._hr = None
 
     def step(self) -> Tick:
         """Advance one reading and return what the device does."""

@@ -128,6 +128,7 @@ def _resolve_adapter(
     settings: Settings,
     tz: tzinfo | None = None,
     on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+    on_restart: Callable[[], Awaitable[None]] | None = None,
 ) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
 
@@ -149,6 +150,8 @@ def _resolve_adapter(
             behavior (FR-CFG-4, design §4).
         on_state_change: Coroutine the ``mock`` adapter calls on every simulated
             connection-state change (e.g. a dropout), so the dashboard can show it.
+        on_restart: Coroutine the ``mock`` adapter calls when a scenario is
+            started from the dashboard, to clear what the previous run left behind.
 
     Returns:
         An instantiated ``DeviceAdapter``.
@@ -163,6 +166,7 @@ def _resolve_adapter(
             scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM,
             interval=settings.mock_interval,
             on_state_change=on_state_change,
+            on_restart=on_restart,
         )
     if adapter_spec == "mock-bp":
         return MockBloodPressureAdapter()
@@ -209,6 +213,22 @@ def _resolve_adapter(
         )
 
     return adapter_class()
+
+
+def _restart_hook(
+    store: InMemoryObservationStore, broadcaster: DashboardBroadcaster
+) -> Callable[[], Awaitable[None]]:
+    """Return the coroutine that wipes a finished simulated run.
+
+    Empties the Observation store (so the FHIR API shows only the new run) and
+    tells every open dashboard to clear its chart and readings.
+    """
+
+    async def restart() -> None:
+        await store.clear()
+        await broadcaster.reset()
+
+    return restart
 
 
 def _build_orchestrator(
@@ -280,15 +300,21 @@ async def _run(settings: Settings, adapter_spec: str) -> None:
     # timestamp-decoding BLE adapters (FR-CFG-4, design §4).
     tz = resolve_timezone(settings.timezone)
     broadcaster = DashboardBroadcaster()
-    # The mock reports simulated dropouts through this callback, as BLE adapters do.
-    adapter = _resolve_adapter(adapter_spec, settings, tz, broadcaster.on_state_change)
+    store = InMemoryObservationStore(settings.store_max)
+    # The mock reports simulated dropouts through ``on_state_change``, as BLE
+    # adapters do, and clears the previous run through ``on_restart``.
+    adapter = _resolve_adapter(
+        adapter_spec,
+        settings,
+        tz,
+        broadcaster.on_state_change,
+        _restart_hook(store, broadcaster),
+    )
 
     device = build_device(adapter.device_info)
     patient = build_patient(settings.patient_id)
     patient_ref = f"Patient/{patient.id}"
     device_ref = f"Device/{device.id}"
-
-    store = InMemoryObservationStore(settings.store_max)
 
     sinks: list[ObservationSink] = [store, broadcaster]
     orchestrator = _build_orchestrator(

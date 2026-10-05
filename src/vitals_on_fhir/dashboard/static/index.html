@@ -69,11 +69,16 @@
     <section class="card" id="sim-card" aria-labelledby="sim-heading" hidden>
       <h2 id="sim-heading">Simulate a heart rhythm</h2>
       <p class="sim-note">
-        Demo data from the mock device. These imitate how the heart <em>rate</em>
-        behaves in each rhythm. They are not an ECG and not a diagnosis.
+        Demo data from the mock device. Pick a scenario and press <strong>Simulate</strong>
+        to start it from the beginning; this clears the chart and the readings from the
+        previous scenario. These imitate how the heart <em>rate</em> behaves in each rhythm.
+        They are not an ECG and not a diagnosis.
       </p>
       <label for="sim-select">Scenario</label>
-      <select id="sim-select" class="sim-select"></select>
+      <div class="sim-row">
+        <select id="sim-select" class="sim-select"></select>
+        <button type="button" id="sim-start">Simulate</button>
+      </div>
       <p class="sim-description" id="sim-description"></p>
       <p class="status-line">
         <span id="sim-status" role="status" aria-live="polite"></span>

@@ -7,23 +7,29 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ## [2026-10-05] — Mock heart-rhythm scenarios and live chart
 
-The `mock` adapter now simulates named heart rhythms that you switch between with a dropdown on the
-dashboard, and the dashboard shows a live chart and a correct connection status for clients that
-connect after the device.
+The `mock` adapter now simulates named heart rhythms that you pick in a dropdown and start with a
+Simulate button on the dashboard (each starts from the beginning and clears the previous run). The
+dashboard also shows a live chart and a correct connection status for clients that connect after
+the device.
 
 - Added: `adapters/builtin/hr_scenarios.py` — `HeartRateScenario` (steady: `NORMAL_SINUS_RHYTHM`,
   `SINUS_BRADYCARDIA`, `SINUS_TACHYCARDIA`, `ATRIAL_FIBRILLATION`; episodes: `PAROXYSMAL_AF`, `SVT`,
   `ATRIAL_FLUTTER`; other: `EXERCISE_RAMP`, `OFF_WRIST`, `DISCONNECT_RECONNECT`) and
-  `ScenarioEngine`. Regular rhythms are a mean-reverting walk that glides when switched; AF draws
+  `ScenarioEngine`. Regular rhythms are a mean-reverting walk; AF draws
   each reading independently; episodes start normal and change abruptly; exercise loops a ramp
 - Added: `MockAdapter` takes `scenario`, `rng` and `on_state_change`, has a settable `scenario`
   property, and `HeartRateScenarioControl` exposes the options. Off-wrist readings carry
   `sensor_contact=False` (the validator rejects them); a dropout reports `RECONNECTING` then
   `CONNECTED` and yields nothing in between. Without a `scenario` it still emits a fixed 72 bpm, so
   existing tests and callers are unaffected
+- Added: starting a scenario clears the previous run: `MockAdapter` takes `on_restart` (awaited
+  between the last old reading and the first new one, so no stale reading can follow it) and its
+  wait between readings is cut short; `cli.py` wires it to the new `InMemoryObservationStore.clear()`
+  and `DashboardBroadcaster.reset()`, which sends a `{"type": "reset"}` envelope that every open
+  dashboard answers by clearing its chart and readings
 - Added: token-protected `GET /mock/scenarios` (id, label, description, group) and
-  `PUT /mock/scenario` (`api/mock_control.py`),
-  registered only when `create_app(scenario_control=...)` is given, i.e. only with `--adapter mock`
+  `PUT /mock/scenario` (`api/mock_control.py`; starts the scenario from the beginning, or restarts
+  it if it is already running), registered only when `create_app(scenario_control=...)` is given, i.e. only with `--adapter mock`
 - Added: `VOF_MOCK_INTERVAL` (default `1.0` s) config variable; started from the CLI, the `mock`
   adapter now emits one reading per second (was one per 10 ms)
 - Added: dashboard "Simulate a heart rhythm" panel (shown only for the mock adapter), a live

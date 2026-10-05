@@ -39,7 +39,7 @@ With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel
 - **Rhythm episodes:** paroxysmal AF, supraventricular tachycardia (SVT), atrial flutter. Each starts normal, then the event begins and ends abruptly.
 - **Activity and device:** exercise and recovery (a repeating ~2 minute ramp), an off-wrist sensor (readings are rejected and the dashboard says no valid reading has arrived), and a disconnect and reconnect (the dashboard shows the dropout and recovers on its own).
 
-Switching glides smoothly from the current rate. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same switch is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` selects one. These paths only exist for the mock adapter.
+Pick a scenario and press **Simulate**: it starts from the beginning and clears everything from the previous run (the chart, the readings, and the Observations the service had stored, so `/fhir/Observation` shows only the new run). Pressing it again restarts the same scenario. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same start is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` starts one. These paths only exist for the mock adapter.
 
 **Run with a Xiaomi Smart Band 10:**
 

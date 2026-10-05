@@ -137,8 +137,8 @@ def test_disconnect_drops_the_link_in_stretches_with_no_readings(seed: int) -> N
     assert all((t.bpm is None) == (not t.connected) for t in ticks)
 
 
-def test_switching_scenarios_restarts_the_new_one_from_its_first_phase() -> None:
-    """Selecting an episodic scenario starts on its normal phase, gliding from the old rate."""
+def test_selecting_a_scenario_restarts_it_from_the_beginning() -> None:
+    """A new scenario starts on its normal phase at its own rate, with nothing carried over."""
     engine = ScenarioEngine(random.Random(4))
     engine.select(HeartRateScenario.ATRIAL_FIBRILLATION)
     for _ in range(30):
@@ -147,5 +147,17 @@ def test_switching_scenarios_restarts_the_new_one_from_its_first_phase() -> None
     engine.select(HeartRateScenario.SVT)
     first = [t.bpm for t in (engine.step() for _ in range(10))]
 
-    assert all(v is not None and v < 160 for v in first)  # no instant SVT
-    assert all(v is not None and v <= 100 for v in first[8:])  # already settled to normal
+    assert all(v is not None and 60 <= v <= 100 for v in first)  # normal from the first reading
+    assert max(_diffs([v for v in first if v is not None])) < 6  # no glide down from AF
+
+
+def test_selecting_the_same_scenario_again_starts_it_over() -> None:
+    """Restarting an episodic scenario returns it to its first (normal) phase."""
+    engine = ScenarioEngine(random.Random(9))
+    engine.select(HeartRateScenario.SVT)
+    ticks = [engine.step().bpm for _ in range(60)]
+    assert any(v is not None and v >= 160 for v in ticks)  # an SVT episode has happened
+
+    engine.select(HeartRateScenario.SVT)
+
+    assert all(t.bpm is not None and t.bpm <= 100 for t in (engine.step() for _ in range(10)))

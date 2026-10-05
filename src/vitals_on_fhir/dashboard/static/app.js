@@ -16,7 +16,9 @@
  * values are shown; presentation resumes automatically on reconnect (FR-6).
  *
  * When the server runs the mock adapter it also exposes /mock/scenarios; the
- * page then shows a dropdown to switch the simulated heart rhythm.
+ * page then shows a dropdown and a Simulate button that starts the chosen
+ * scenario from the beginning. A third envelope, { "type": "reset" }, then
+ * tells every open page to clear its chart and readings.
  *
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
@@ -50,7 +52,6 @@
 
   var history = []; // [{ t: epoch ms, v: bpm }], oldest first
   var scenarioOptions = []; // [{ id, label, description, group }] from /mock/scenarios
-  var currentScenario = ""; // id of the scenario the server is running
   var deviceLive = false; // true while the device is reported connected
   var lastReadingAt = null; // epoch ms of the latest valid reading, or null
   var socket = null;
@@ -74,6 +75,7 @@
     els.statMax = document.getElementById("stat-max");
     els.simCard = document.getElementById("sim-card");
     els.simSelect = document.getElementById("sim-select");
+    els.simStart = document.getElementById("sim-start");
     els.simDescription = document.getElementById("sim-description");
     els.simStatus = document.getElementById("sim-status");
     els.readingNote = document.getElementById("reading-note");
@@ -298,6 +300,17 @@
     }
   }
 
+  // A new simulated session started: forget everything shown so far.
+  function resetDisplay() {
+    history = [];
+    lastReadingAt = null;
+    els.hrValue.textContent = "—";
+    els.hrTimestamp.textContent = "No reading yet";
+    els.readingNote.hidden = true;
+    markLive();
+    drawChart();
+  }
+
   function handleMessage(event) {
     var envelope;
     try {
@@ -312,6 +325,8 @@
       handleObservation(envelope.resource);
     } else if (envelope.type === "connection_state") {
       handleConnectionState(envelope.state);
+    } else if (envelope.type === "reset") {
+      resetDisplay();
     }
   }
 
@@ -323,22 +338,32 @@
     return headers;
   }
 
-  // Show the active scenario in the dropdown, with its description, and say
-  // which one is running.
-  function markScenario(id) {
-    var option = null;
+  function findScenario(id) {
+    var found = null;
     scenarioOptions.forEach(function (candidate) {
       if (candidate.id === id) {
-        option = candidate;
+        found = candidate;
       }
     });
-    currentScenario = id;
-    els.simSelect.value = id;
+    return found;
+  }
+
+  // The description follows the dropdown; the status line says what is running.
+  function showSelectedDescription() {
+    var option = findScenario(els.simSelect.value);
     els.simDescription.textContent = option ? option.description : "";
+  }
+
+  function markRunning(id) {
+    var option = findScenario(id);
     els.simStatus.textContent = option ? "Simulating: " + option.label : "";
   }
 
-  function selectScenario(id) {
+  // Start the dropdown's scenario from the beginning. The server clears the
+  // previous run and tells every page to reset (see the "reset" envelope).
+  function startScenario() {
+    var id = els.simSelect.value;
+    els.simStart.disabled = true;
     fetch("/mock/scenario", {
       method: "PUT",
       headers: authHeaders({ "Content-Type": "application/json" }),
@@ -351,11 +376,13 @@
         return response.json();
       })
       .then(function (data) {
-        markScenario(data.current);
+        markRunning(data.current);
       })
       .catch(function () {
-        markScenario(currentScenario); // put the dropdown back on what is really running
-        els.simStatus.textContent = "Could not change the simulated rhythm.";
+        els.simStatus.textContent = "Could not start the simulation.";
+      })
+      .then(function () {
+        els.simStart.disabled = false;
       });
   }
 
@@ -377,7 +404,9 @@
       item.textContent = option.label;
       optgroup.appendChild(item);
     });
-    markScenario(data.current);
+    els.simSelect.value = data.current;
+    showSelectedDescription();
+    markRunning(data.current);
     els.simCard.hidden = false;
   }
 
@@ -489,9 +518,8 @@
   function init() {
     cacheElements();
     els.form.addEventListener("submit", onSubmit);
-    els.simSelect.addEventListener("change", function () {
-      selectScenario(els.simSelect.value);
-    });
+    els.simSelect.addEventListener("change", showSelectedDescription);
+    els.simStart.addEventListener("click", startScenario);
     drawChart();
     // Slide the window forward between readings (and across disconnects).
     window.setInterval(function () {

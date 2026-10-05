@@ -288,3 +288,21 @@ def test_search_honors_filters_sort_and_count(
             assert effectives == sorted(effectives)
 
     asyncio.run(scenario())
+
+
+def test_clear_removes_everything() -> None:
+    """``clear`` empties the store; it can be used again afterwards."""
+
+    async def scenario() -> None:
+        store = InMemoryObservationStore(10)
+        for seconds in range(3):
+            await store.add(_make_observation(value=70.0 + seconds, seconds=seconds))  # type: ignore[arg-type]
+        assert len(await store.search()) == 3
+
+        await store.clear()
+
+        assert await store.search() == []
+        await store.add(_make_observation(value=80.0, seconds=9))  # type: ignore[arg-type]
+        assert len(await store.search()) == 1
+
+    asyncio.run(scenario())

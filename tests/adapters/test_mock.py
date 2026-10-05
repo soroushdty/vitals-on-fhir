@@ -90,28 +90,27 @@ def test_atrial_fibrillation_is_fast_and_irregular() -> None:
     assert sum(af) / len(af) > 100
 
 
-def test_switching_scenario_glides_then_settles_in_the_new_band() -> None:
-    """A live switch moves smoothly to the new rhythm instead of jumping in one reading."""
+def test_starting_a_scenario_begins_at_its_own_rate_with_nothing_carried_over() -> None:
+    """A restart does not glide from the old rate: the very first reading is in the new band."""
 
-    async def scenario() -> list[float]:
+    async def run() -> tuple[float, float]:
         adapter = MockAdapter(
-            scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM, interval=0, rng=random.Random(3)
+            scenario=HeartRateScenario.SINUS_TACHYCARDIA, interval=0, rng=random.Random(3)
         )
         await adapter.connect()
-        values: list[float] = []
-        async for reading in adapter.vitals():
-            values.append(reading.value)  # type: ignore[attr-defined]
-            if len(values) == 30:
-                adapter.scenario = HeartRateScenario.SINUS_TACHYCARDIA
-            if len(values) == 30 + _SETTLE + 100:
-                await adapter.disconnect()
-        return values
+        stream = adapter.vitals()
+        before = 0.0
+        for _ in range(30):
+            before = (await anext(stream)).value  # type: ignore[attr-defined]
+        adapter.scenario = HeartRateScenario.SINUS_BRADYCARDIA
+        after = (await anext(stream)).value  # type: ignore[attr-defined]
+        await stream.aclose()  # type: ignore[attr-defined]
+        return before, after
 
-    values = asyncio.run(scenario())
-    before, after = values[:30], values[30:]
+    before, after = asyncio.run(run())
 
-    assert max(after[0], after[1]) - before[-1] < 35  # no instant jump to ~118
-    assert all(100 < v <= 150 for v in after[_SETTLE:])
+    assert before > 100
+    assert 38 <= after < 60
 
 
 def test_scenarios_are_reproducible_with_a_seeded_rng() -> None:
@@ -122,8 +121,8 @@ def test_scenarios_are_reproducible_with_a_seeded_rng() -> None:
         )
 
 
-def test_control_lists_options_and_switches_scenario() -> None:
-    """``HeartRateScenarioControl`` exposes every scenario and applies a selection."""
+def test_control_lists_options_and_starts_a_scenario() -> None:
+    """``HeartRateScenarioControl`` exposes every scenario and starts the chosen one."""
     adapter = MockAdapter()
     control = HeartRateScenarioControl(adapter)
 
@@ -131,7 +130,7 @@ def test_control_lists_options_and_switches_scenario() -> None:
     assert [o["id"] for o in control.options()] == [s.value for s in HeartRateScenario]
     assert all(o["label"] and o["description"] for o in control.options())
 
-    control.select("atrial_fibrillation")
+    control.start("atrial_fibrillation")
 
     assert control.current == "atrial_fibrillation"
     assert adapter.scenario is HeartRateScenario.ATRIAL_FIBRILLATION
@@ -142,7 +141,7 @@ def test_control_rejects_an_unknown_scenario() -> None:
     control = HeartRateScenarioControl(MockAdapter(scenario=HeartRateScenario.SINUS_BRADYCARDIA))
 
     with pytest.raises(ValueError, match="Unknown scenario"):
-        control.select("ventricular_tachycardia")
+        control.start("ventricular_tachycardia")
 
     assert control.current == "sinus_bradycardia"
 
@@ -225,3 +224,88 @@ def test_switching_away_from_a_dropout_restores_the_connection() -> None:
     drop = states.index(ConnectionState.RECONNECTING)
     assert states[drop + 1] == ConnectionState.CONNECTED  # straight back, not after 8-12 ticks
     assert states.count(ConnectionState.RECONNECTING) == 1  # and no further dropouts
+
+
+# --- Restart: clearing the previous run, and starting at once ---------------
+
+
+def test_restart_hook_runs_between_the_old_run_and_the_new_one() -> None:
+    """``on_restart`` fires once per start, after the last old reading and before the first new."""
+    events: list[str] = []
+
+    async def on_restart() -> None:
+        events.append("restart")
+
+    adapter = MockAdapter(
+        scenario=HeartRateScenario.SINUS_TACHYCARDIA,
+        interval=0,
+        rng=random.Random(5),
+        on_restart=on_restart,
+    )
+
+    async def run() -> None:
+        await adapter.connect()
+        stream = adapter.vitals()
+        for _ in range(3):
+            reading = await anext(stream)
+            events.append("old" if reading.value > 100 else "new")  # type: ignore[attr-defined]
+        adapter.scenario = HeartRateScenario.SINUS_BRADYCARDIA
+        for _ in range(3):
+            reading = await anext(stream)
+            events.append("old" if reading.value > 100 else "new")  # type: ignore[attr-defined]
+        await stream.aclose()  # type: ignore[attr-defined]
+
+    asyncio.run(run())
+
+    assert events == ["old", "old", "old", "restart", "new", "new", "new"]  # not at first start
+
+
+def test_restarting_the_running_scenario_also_clears_and_restarts() -> None:
+    """Starting the scenario that is already running is a restart, not a no-op."""
+    restarts = 0
+
+    async def on_restart() -> None:
+        nonlocal restarts
+        restarts += 1
+
+    adapter = MockAdapter(
+        scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM,
+        interval=0,
+        rng=random.Random(2),
+        on_restart=on_restart,
+    )
+
+    async def run() -> None:
+        await adapter.connect()
+        stream = adapter.vitals()
+        await anext(stream)
+        adapter.scenario = HeartRateScenario.NORMAL_SINUS_RHYTHM
+        await anext(stream)
+        await stream.aclose()  # type: ignore[attr-defined]
+
+    asyncio.run(run())
+
+    assert restarts == 1
+
+
+def test_a_restart_does_not_wait_out_the_reading_interval() -> None:
+    """With a 30 s interval, a restart still produces its first reading almost at once."""
+    adapter = MockAdapter(
+        scenario=HeartRateScenario.NORMAL_SINUS_RHYTHM, interval=30, rng=random.Random(1)
+    )
+
+    async def run() -> float:
+        await adapter.connect()
+        stream = adapter.vitals()
+        await anext(stream)  # first reading arrives immediately; the next is 30 s away
+        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop().call_later(
+            0.05, lambda: setattr(adapter, "scenario", HeartRateScenario.SINUS_BRADYCARDIA)
+        )
+        started = loop.time()
+        await asyncio.wait_for(anext(stream), timeout=5)
+        elapsed = loop.time() - started
+        await adapter.disconnect()
+        return elapsed
+
+    assert asyncio.run(run()) < 2

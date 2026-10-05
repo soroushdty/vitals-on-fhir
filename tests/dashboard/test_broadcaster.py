@@ -229,3 +229,22 @@ def test_dashboard_has_live_chart_assets() -> None:
 
     assert 'id="hr-chart"' in (static / "index.html").read_text(encoding="utf-8")
     assert "hr-chart" in (static / "app.js").read_text(encoding="utf-8")
+
+
+def test_reset_tells_every_client_to_start_over() -> None:
+    """``reset`` pushes a ``reset`` envelope, in order with the observations around it."""
+
+    async def scenario() -> tuple[list[str], list[str]]:
+        broadcaster = DashboardBroadcaster()
+        first, second = FakeWebSocket(), FakeWebSocket()
+        await broadcaster.register(first)
+        await broadcaster.register(second)
+        await broadcaster.publish(_make_observation(70.0))
+        await broadcaster.reset()
+        await broadcaster.publish(_make_observation(50.0))
+        return first.messages, second.messages
+
+    first, second = asyncio.run(scenario())
+
+    for messages in (first, second):
+        assert [json.loads(m)["type"] for m in messages] == ["observation", "reset", "observation"]

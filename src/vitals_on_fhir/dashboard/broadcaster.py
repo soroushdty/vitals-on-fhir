@@ -11,6 +11,8 @@ Two WebSocket message envelopes are emitted (see design §10 / Data Models):
 
 - ``{"type": "observation", "resource": {...full FHIR Observation...}}``
 - ``{"type": "connection_state", "state": "<state>"}``
+- ``{"type": "reset"}`` — a new simulated session started; clients drop
+  everything they have shown so far.
 
 The ``resource`` payload is the exact FHIR JSON produced by
 ``Observation.model_dump_json()``; the dashboard never receives a non-FHIR
@@ -174,6 +176,14 @@ class DashboardBroadcaster(ObservationSink):
         """
         self._last_state = _state_value(state)
         await self._broadcast(_state_envelope(self._last_state))
+
+    async def reset(self) -> None:
+        """Tell every client to clear what it is showing and start afresh.
+
+        Sent in the same ordered stream as observations, so a client sees the
+        reset before the first reading of the new session.  Never raises.
+        """
+        await self._broadcast(json.dumps({"type": "reset"}))
 
     async def _broadcast(self, message: str) -> None:
         """Send *message* to every active connection, pruning failed sockets.

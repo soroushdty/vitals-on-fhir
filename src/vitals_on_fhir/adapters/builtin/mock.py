@@ -10,6 +10,7 @@ sensor-contact-lost readings).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import enum
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -75,6 +76,7 @@ class MockAdapter(DeviceAdapter):
         scenario: HeartRateScenario | None = None,
         rng: random.Random | None = None,
         on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_restart: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Create a mock adapter.
 
@@ -90,6 +92,10 @@ class MockAdapter(DeviceAdapter):
                 ``random.Random`` for reproducible output.
             on_state_change: Optional async callback invoked on every
                 connection-state change, as the BLE adapters do.
+            on_restart: Optional async callback awaited when the scenario is
+                (re)started, after every earlier reading has been delivered and
+                before the first reading of the new run; the composition root
+                uses it to clear what the previous run left behind.
         """
         self._emission_mode = emission_mode
         self._interval = interval
@@ -99,6 +105,9 @@ class MockAdapter(DeviceAdapter):
         if scenario is not None:
             self._engine.select(scenario)
         self._on_state_change = on_state_change
+        self._on_restart = on_restart
+        self._restart_pending = False
+        self._wake = asyncio.Event()  # set to cut the wait between readings short
         self._state = ConnectionState.DISCONNECTED
 
     @property
@@ -117,9 +126,16 @@ class MockAdapter(DeviceAdapter):
 
     @scenario.setter
     def scenario(self, scenario: HeartRateScenario) -> None:
-        """Switch to *scenario*; the next reading follows it, gliding from the last rate."""
+        """(Re)start *scenario* from the beginning, right away.
+
+        The pending wait between readings is cut short; before the first new
+        reading ``on_restart`` runs, so nothing from the previous run follows it.
+        Selecting the running scenario again restarts it.
+        """
         self._scenario = scenario
         self._engine.select(scenario)
+        self._restart_pending = True
+        self._wake.set()
 
     @property
     def state(self) -> ConnectionState:
@@ -158,11 +174,27 @@ class MockAdapter(DeviceAdapter):
         while self._state in _ACTIVE_STATES:
             if self._count is not None and emitted >= self._count:
                 return
+            if self._restart_pending:
+                # Every earlier reading has been delivered by now (the consumer
+                # only asks for the next one after handling the last), so
+                # clearing here cannot let a stale reading slip in afterwards.
+                self._restart_pending = False
+                if self._on_restart is not None:
+                    await self._on_restart()
             reading = await self._next_reading()
             if reading is not None:
                 yield reading
                 emitted += 1
-            await asyncio.sleep(self._interval)
+            await self._pause()
+
+    async def _pause(self) -> None:
+        """Wait ``interval`` seconds between readings, or less if a restart is requested."""
+        if self._interval <= 0:
+            await asyncio.sleep(0)
+            return
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._wake.wait(), timeout=self._interval)
+        self._wake.clear()
 
     async def _next_reading(self) -> HeartRate | None:
         """Return the next reading, or ``None`` while the simulated link is down.
@@ -208,7 +240,7 @@ class MockAdapter(DeviceAdapter):
 
 
 class HeartRateScenarioControl:
-    """Lets the dashboard choose the :class:`MockAdapter` heart-rate scenario.
+    """Lets the dashboard start a :class:`MockAdapter` heart-rate scenario.
 
     Structurally satisfies ``api.mock_control.ScenarioControl`` (the ``api``
     package cannot import adapters); ``cli.py`` hands it to ``create_app``.
@@ -234,8 +266,10 @@ class HeartRateScenarioControl:
             for i in scenario_infos()
         ]
 
-    def select(self, scenario_id: str) -> None:
-        """Switch to the scenario with id *scenario_id*.
+    def start(self, scenario_id: str) -> None:
+        """Start the scenario with id *scenario_id* from the beginning.
+
+        Starting the scenario that is already running restarts it.
 
         Raises:
             ValueError: If *scenario_id* is not one of :meth:`options`.

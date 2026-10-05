@@ -5,7 +5,8 @@ Two token-protected endpoints, registered only when the composition root passes
 a :class:`ScenarioControl` to ``create_app`` (i.e. only with ``--adapter mock``):
 
 - ``GET /mock/scenarios`` — the selectable scenarios and the active one.
-- ``PUT /mock/scenario`` with ``{"scenario": "<id>"}`` — switch the active one.
+- ``PUT /mock/scenario`` with ``{"scenario": "<id>"}`` — start that scenario from
+  the beginning (restarting it if it is already running).
 
 With any other adapter the paths are not registered, so they answer ``404`` and
 the dashboard hides its simulator panel.
@@ -25,7 +26,7 @@ from vitals_on_fhir.api.routes import require_token
 
 
 class ScenarioControl(Protocol):
-    """Structural interface for something that can switch a simulated scenario."""
+    """Structural interface for something that can start a simulated scenario."""
 
     @property
     def current(self) -> str:
@@ -36,8 +37,8 @@ class ScenarioControl(Protocol):
         """Return every scenario as ``{"id", "label", "description"}``."""
         ...
 
-    def select(self, scenario_id: str) -> None:
-        """Switch to *scenario_id*, raising ``ValueError`` if it is unknown."""
+    def start(self, scenario_id: str) -> None:
+        """Start *scenario_id* from the beginning, raising ``ValueError`` if it is unknown."""
         ...
 
 
@@ -58,9 +59,9 @@ def build_router(control: ScenarioControl) -> APIRouter:
 
     @router.put("/scenario")
     async def set_scenario(body: ScenarioRequest) -> dict[str, str]:
-        """Switch the active scenario; ``400`` if the id is unknown."""
+        """Start a scenario from the beginning; ``400`` if the id is unknown."""
         try:
-            control.select(body.scenario)
+            control.start(body.scenario)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"current": control.current}
