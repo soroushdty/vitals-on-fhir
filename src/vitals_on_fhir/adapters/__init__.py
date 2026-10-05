@@ -9,19 +9,24 @@ from vitals_on_fhir.adapters.ble import (
 )
 from vitals_on_fhir.adapters.bp_parser import BloodPressureMeasurementParser
 from vitals_on_fhir.adapters.builtin.blood_pressure_ble import BloodPressureBleAdapter
+from vitals_on_fhir.adapters.builtin.hr_scenarios import HeartRateScenario
 from vitals_on_fhir.adapters.builtin.miband10 import MiBand10Adapter
 from vitals_on_fhir.adapters.builtin.mock import (
     BloodPressureEmissionMode,
     EmissionMode,
+    HeartRateScenarioControl,
     MockAdapter,
     MockBloodPressureAdapter,
     MockOximeterAdapter,
     MockThermometerAdapter,
+    MockWeightAdapter,
     OximeterEmissionMode,
     ThermometerEmissionMode,
+    WeightEmissionMode,
 )
 from vitals_on_fhir.adapters.builtin.pulse_oximeter_ble import PulseOximeterBleAdapter
 from vitals_on_fhir.adapters.builtin.thermometer_ble import HealthThermometerBleAdapter
+from vitals_on_fhir.adapters.builtin.weight_scale_ble import WeightScaleBleAdapter
 from vitals_on_fhir.adapters.parser import HeartRateMeasurementParser
 
 __all__ = [
@@ -39,6 +44,8 @@ __all__ = [
     "BloodPressureBleAdapter",
     "MockAdapter",
     "EmissionMode",
+    "HeartRateScenario",
+    "HeartRateScenarioControl",
     "MockBloodPressureAdapter",
     "BloodPressureEmissionMode",
     "PulseOximeterBleAdapter",
@@ -47,4 +54,7 @@ __all__ = [
     "HealthThermometerBleAdapter",
     "MockThermometerAdapter",
     "ThermometerEmissionMode",
+    "WeightScaleBleAdapter",
+    "MockWeightAdapter",
+    "WeightEmissionMode",
 ]

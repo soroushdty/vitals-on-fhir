@@ -33,6 +33,14 @@ uv run vitals-on-fhir --adapter mock
 
 Once the service is running, open **`http://127.0.0.1:8000/`** in a browser, enter your `VOF_API_TOKEN`, and you'll see the live heart rate, the observation timestamp, and the connection status update in real time.
 
+With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel with a dropdown of scenarios, grouped as:
+
+- **Steady rhythms:** normal sinus rhythm, sinus bradycardia, sinus tachycardia, atrial fibrillation.
+- **Rhythm episodes:** paroxysmal AF, supraventricular tachycardia (SVT), atrial flutter. Each starts normal, then the event begins and ends abruptly.
+- **Activity and device:** exercise and recovery (a repeating ~2 minute ramp), an off-wrist sensor (readings are rejected and the dashboard says no valid reading has arrived), and a disconnect and reconnect (the dashboard shows the dropout and recovers on its own).
+
+Pick a scenario and press **Simulate**: it starts from the beginning and clears everything from the previous run (the chart, the readings, and the Observations the service had stored, so `/fhir/Observation` shows only the new run). Pressing it again restarts the same scenario. These imitate the heart *rate* only (no ECG) and are not a diagnosis. The same start is available over HTTP with your token: `GET /mock/scenarios` lists the options and `PUT /mock/scenario` with `{"scenario": "atrial_fibrillation"}` starts one. These paths only exist for the mock adapter.
+
 **Run with a Xiaomi Smart Band 10:**
 
 1. Enable heart-rate broadcast on the band (a heart-rate sharing setting; its location varies by firmware).
@@ -62,7 +70,7 @@ See [docs/fhir-api.md](docs/fhir-api.md) for the full endpoint reference and an 
 
 ## Configuration
 
-Configuration comes from environment variables (or `.env`). Unknown `VOF_*` variables are rejected at startup to catch typos.
+Configuration comes from environment variables (or `.env`), plus an optional YAML file: copy `config.yaml.example` to `config.yaml` (picked up from the working directory) or pass `--config path/to/file.yaml`. YAML keys are the variable names in lowercase without the `VOF_` prefix, and environment variables win over the file. Unknown `VOF_*` variables and unknown YAML keys are rejected at startup to catch typos. Keep `VOF_API_TOKEN` in the environment or `.env`, not in the YAML file.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -71,6 +79,7 @@ Configuration comes from environment variables (or `.env`). Unknown `VOF_*` vari
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `miband10`, or a fully qualified class path (`package.module.ClassName`) |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
+| `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
 | `VOF_STORE_MAX` | `10000` | Maximum Observations kept in memory |

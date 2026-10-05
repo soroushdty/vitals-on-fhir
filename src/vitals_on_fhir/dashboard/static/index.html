@@ -49,6 +49,40 @@
         Connection status:
         <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
       </p>
+
+      <!-- Shown when the device is connected but nothing valid has arrived for a while. -->
+      <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <!-- Live trend of the last two minutes of readings; drawn by app.js. -->
+    <section class="card" aria-labelledby="chart-heading">
+      <h2 id="chart-heading">Heart rate, last 2 minutes</h2>
+      <div id="hr-chart" class="chart" role="img" aria-label="Live heart-rate chart"></div>
+      <dl class="chart-stats">
+        <div><dt>Lowest</dt><dd id="stat-min">—</dd></div>
+        <div><dt>Average</dt><dd id="stat-avg">—</dd></div>
+        <div><dt>Highest</dt><dd id="stat-max">—</dd></div>
+      </dl>
+    </section>
+
+    <!-- Mock-device simulator. Hidden unless the server runs --adapter mock (app.js). -->
+    <section class="card" id="sim-card" aria-labelledby="sim-heading" hidden>
+      <h2 id="sim-heading">Simulate a heart rhythm</h2>
+      <p class="sim-note">
+        Demo data from the mock device. Pick a scenario and press <strong>Simulate</strong>
+        to start it from the beginning; this clears the chart and the readings from the
+        previous scenario. These imitate how the heart <em>rate</em> behaves in each rhythm.
+        They are not an ECG and not a diagnosis.
+      </p>
+      <label for="sim-select">Scenario</label>
+      <div class="sim-row">
+        <select id="sim-select" class="sim-select"></select>
+        <button type="button" id="sim-start">Simulate</button>
+      </div>
+      <p class="sim-description" id="sim-description"></p>
+      <p class="status-line">
+        <span id="sim-status" role="status" aria-live="polite"></span>
+      </p>
     </section>
 
     <!-- Security and scope disclaimers (FR-5, security-privacy.md). -->

@@ -98,6 +98,16 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
                 self._items.popitem(last=False)
             self._items[observation_id] = self._copy(observation)
 
+    async def clear(self) -> None:
+        """Remove every stored Observation.
+
+        Not part of the :class:`~vitals_on_fhir.store.ObservationStore`
+        interface: only the composition root calls it, to start a fresh
+        simulated session.
+        """
+        async with self._lock:
+            self._items.clear()
+
     async def get(self, observation_id: str) -> Observation | None:
         """Return the Observation with the given ID, or ``None`` if absent.
 

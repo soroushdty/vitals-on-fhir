@@ -145,6 +145,108 @@ button:disabled {
   opacity: 0.5;
 }
 
+/* Live heart-rate chart (drawn as inline SVG by app.js). */
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart .axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart .empty-label {
+  fill: var(--muted);
+  font-size: 13px;
+  text-anchor: middle;
+}
+
+.chart .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart .dot {
+  fill: var(--accent);
+}
+
+.chart.stale .line,
+.chart.stale .dot {
+  stroke: var(--muted);
+  fill: var(--muted);
+  opacity: 0.5;
+}
+
+.chart.stale .line {
+  fill: none;
+}
+
+.chart-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.chart-stats dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chart-stats dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.reading-note {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning-border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Mock-device scenario picker. */
+.sim-note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sim-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sim-select {
+  flex: 1 1 220px;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.sim-description {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .notice .warning {
   background: var(--warning-bg);
   border-left: 4px solid var(--warning-border);

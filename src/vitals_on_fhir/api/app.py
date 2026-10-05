@@ -27,12 +27,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
-from vitals_on_fhir.api import routes
+from vitals_on_fhir.api import mock_control, routes
 from vitals_on_fhir.api.auth import Authenticator
 from vitals_on_fhir.store import ObservationStore
 
@@ -76,6 +77,7 @@ def create_app(
     patient: Patient,
     device: Device,
     static_dir: str | Path | None = None,
+    scenario_control: mock_control.ScenarioControl | None = None,
 ) -> FastAPI:
     """Construct and return the configured FastAPI application.
 
@@ -111,6 +113,9 @@ def create_app(
         device: The startup-built ``Device`` resource for the connected device.
         static_dir: Filesystem path to the dashboard static assets.  When
             ``None``, no static mount is added (useful for API-only tests).
+        scenario_control: Mock-adapter scenario switch.  When given, the
+            token-protected ``/mock/*`` endpoints are registered; otherwise
+            they do not exist.
 
     Returns:
         A fully configured :class:`fastapi.FastAPI` instance ready for uvicorn.
@@ -133,6 +138,9 @@ def create_app(
     app.dependency_overrides[routes.get_authenticator] = lambda: authenticator
     app.dependency_overrides[routes.get_patient_resource] = lambda: patient
     app.dependency_overrides[routes.get_device_resource] = lambda: device
+
+    if scenario_control is not None:
+        app.include_router(mock_control.build_router(scenario_control))
 
     _register_websocket(app, authenticator=authenticator, broadcaster=broadcaster)
 
@@ -188,6 +196,21 @@ def _register_websocket(
             await broadcaster.unregister(websocket)
 
 
+class _RevalidatingStaticFiles(StaticFiles):
+    """``StaticFiles`` that makes browsers revalidate on every load.
+
+    Without a ``Cache-Control`` header browsers apply heuristic caching and can
+    keep showing a stale dashboard after an upgrade without contacting the
+    server.  ``no-cache`` still allows a cheap ``304`` via the ETag.
+    """
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        """Return the file response with ``Cache-Control: no-cache`` added."""
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def _mount_static(app: FastAPI, static_dir: str | Path) -> None:
     """Mount the dashboard static assets at ``/`` (defensively).
 
@@ -201,4 +224,4 @@ def _mount_static(app: FastAPI, static_dir: str | Path) -> None:
     """
     path = Path(static_dir)
     path.mkdir(parents=True, exist_ok=True)
-    app.mount("/", StaticFiles(directory=str(path), html=True), name="dashboard")
+    app.mount("/", _RevalidatingStaticFiles(directory=str(path), html=True), name="dashboard")
