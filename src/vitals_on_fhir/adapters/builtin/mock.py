@@ -117,6 +117,7 @@ class MockAdapter(DeviceAdapter):
             manufacturer="vitals-on-fhir",
             model="Mock HR",
             identifiers={"mock": "1"},
+            simulated=True,
         )
 
     @property
@@ -344,6 +345,7 @@ class MockBloodPressureAdapter(DeviceAdapter):
             manufacturer="vitals-on-fhir",
             model="Mock BP",
             identifiers={"mock": "bp-1"},
+            simulated=True,
         )
 
     @property
@@ -459,6 +461,7 @@ class MockOximeterAdapter(DeviceAdapter):
             manufacturer="vitals-on-fhir",
             model="Mock SpO2",
             identifiers={"mock": "spo2-1"},
+            simulated=True,
         )
 
     @property
@@ -570,6 +573,7 @@ class MockThermometerAdapter(DeviceAdapter):
             manufacturer="vitals-on-fhir",
             model="Mock Temp",
             identifiers={"mock": "temp-1"},
+            simulated=True,
         )
 
     @property
@@ -683,6 +687,7 @@ class MockWeightAdapter(DeviceAdapter):
             manufacturer="vitals-on-fhir",
             model="Mock Weight",
             identifiers={"mock": "weight-1"},
+            simulated=True,
         )
 
     @property

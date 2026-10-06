@@ -18,6 +18,7 @@ from vitals_on_fhir.fhir.builders import (
     build_patient,
 )
 from vitals_on_fhir.fhir.mappers import ComponentVitalMapper, ScalarVitalMapper
+from vitals_on_fhir.fhir.provenance import mark_simulated
 from vitals_on_fhir.vitals import ComponentVital, ScalarVital
 
 # Register the default mappers as a package-load side effect. Every ScalarVital
@@ -37,6 +38,7 @@ __all__ = [
     "build_patient",
     "build_capability_statement",
     "build_operation_outcome",
+    "mark_simulated",
     "register_mapper",
     "resolve_mapper",
 ]

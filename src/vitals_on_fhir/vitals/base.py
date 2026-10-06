@@ -218,3 +218,10 @@ class DeviceInfo:
 
     Values must be strings; keys are identifier system names.
     """
+
+    simulated: bool = False
+    """``True`` for a device that produces simulated readings (the mock adapters).
+
+    Its Device and Observations are labelled as test data (``HTEST``), so they can
+    never be taken for real measurements (ADR-0002).
+    """

@@ -15,6 +15,11 @@ Protocol knowledge must be cited here, not only in code comments.
 - [roadmap.md](roadmap.md) — planned vital signs, adapters, and integrations beyond the MVP.
 - [standards-and-related-work.md](standards-and-related-work.md) — the standards this project builds on and related projects.
 
+## Architecture Decision Records
+
+- [ADR-0001](adr-0001-open-phase-2-home-health-devices.md) — open roadmap phase 2 (home health devices).
+- [ADR-0002](adr-0002-mark-patient-generated-and-simulated-observations.md) — mark Observations as patient-generated (`performer`, PHD category) and simulated data as test data (`HTEST`).
+
 ## Protocol source citations
 
 - [Bluetooth Heart Rate Measurement (0x2A37)](protocol-heart-rate-measurement.md) — Bluetooth SIG

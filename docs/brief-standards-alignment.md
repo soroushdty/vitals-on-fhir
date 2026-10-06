@@ -123,7 +123,9 @@ reworking the ABC. That is a public-ABC change, and it needs a `CHANGELOG.md` en
   SMART into phase 3 is weak.
 - Which provenance representation should #6 use (`performer`, `meta.tag`, `Provenance`, or the PGHD
   code system in [3] once it is published)? This should be decided in the same ADR round, because it
-  also changes `fhir-conventions.md`.
+  also changes `fhir-conventions.md`. *Resolved 2026-10-05 by
+  [ADR-0002](adr-0002-mark-patient-generated-and-simulated-observations.md): `performer` = Patient,
+  the PHD `phd` category, and `HTEST` for simulated data.*
 
 ## References
 

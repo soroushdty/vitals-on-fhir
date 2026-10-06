@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from vitals_on_fhir.fhir.base import VitalMapper
+from vitals_on_fhir.fhir.provenance import PHD_CATEGORY
 from vitals_on_fhir.vitals.base import ComponentVital, ScalarVital, VitalSign
 
 if TYPE_CHECKING:
@@ -56,7 +57,9 @@ class ScalarVitalMapper(VitalMapper):
 
     Builds the Observation entirely from the vital sign's class metadata
     (``loinc_code``, ``ucum_unit``, ``us_core_profile``), so adding a new
-    scalar vital sign type requires no mapper code.
+    scalar vital sign type requires no mapper code.  Every Observation is
+    marked as patient-generated: the PHD category next to vital-signs, and the
+    Patient as ``performer`` (ADR-0002).
     """
 
     def to_observation(
@@ -109,7 +112,8 @@ class ScalarVitalMapper(VitalMapper):
                             "display": "Vital Signs",
                         }
                     ]
-                }
+                },
+                PHD_CATEGORY,
             ],
             "code": {
                 "coding": [
@@ -120,6 +124,8 @@ class ScalarVitalMapper(VitalMapper):
                 ]
             },
             "subject": {"reference": patient_ref},
+            # The patient collected the reading themselves (ADR-0002).
+            "performer": [{"reference": patient_ref}],
             "device": {"reference": device_ref},
             "effectiveDateTime": _to_utc_isoformat(vital.effective),
             "issued": _to_utc_isoformat(issued),
@@ -141,7 +147,8 @@ class ComponentVitalMapper(VitalMapper):
     the vital's class — with no panel-level ``valueQuantity``. This matches the
     US Core Blood Pressure profile shape and generalizes to any multi-component
     vital, so a new ``ComponentVital`` subclass with correct metadata needs no
-    mapper code.
+    mapper code.  It carries the same patient-generated markers as
+    :class:`ScalarVitalMapper` (ADR-0002).
     """
 
     def to_observation(
@@ -215,7 +222,8 @@ class ComponentVitalMapper(VitalMapper):
                             "display": "Vital Signs",
                         }
                     ]
-                }
+                },
+                PHD_CATEGORY,
             ],
             "code": {
                 "coding": [
@@ -226,6 +234,8 @@ class ComponentVitalMapper(VitalMapper):
                 ]
             },
             "subject": {"reference": patient_ref},
+            # The patient collected the reading themselves (ADR-0002).
+            "performer": [{"reference": patient_ref}],
             "device": {"reference": device_ref},
             "effectiveDateTime": _to_utc_isoformat(vital.effective),
             "issued": _to_utc_isoformat(issued),

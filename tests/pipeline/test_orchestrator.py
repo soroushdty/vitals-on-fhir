@@ -26,6 +26,7 @@ from vitals_on_fhir.validation import (
     SensorContactValidator,
     ValidatorChain,
 )
+from vitals_on_fhir.vitals.base import DeviceInfo
 
 if TYPE_CHECKING:
     from fhir.resources.R4B.observation import Observation
@@ -106,3 +107,48 @@ def test_property_17_failing_sink_does_not_stop_others(
             "non-failing sink should receive every accepted Observation "
             "regardless of other sinks failing"
         )
+
+
+def test_observations_from_a_simulated_device_are_labelled_htest() -> None:
+    """The orchestrator labels every Observation from the mock as test data (ADR-0002)."""
+    sink = RecordingSink()
+    orchestrator = Orchestrator(
+        MockAdapter(EmissionMode.VALID, interval=0.0, count=2),
+        _make_chain(),
+        ScalarVitalMapper(),
+        [sink],
+        patient_ref=_PATIENT_REF,
+        device_ref=_DEVICE_REF,
+    )
+
+    asyncio.run(orchestrator.run())
+
+    assert len(sink.received) == 2
+    for observation in sink.received:
+        labels = [(label.system, label.code) for label in observation.meta.security or []]
+        assert labels == [("http://terminology.hl7.org/CodeSystem/v3-ActReason", "HTEST")]
+
+
+def test_observations_from_a_real_device_carry_no_test_label() -> None:
+    """Without ``DeviceInfo.simulated`` nothing is labelled as test data."""
+
+    class _RealLookingMock(MockAdapter):
+        @property
+        def device_info(self) -> DeviceInfo:
+            # Same identifiers (MockAdapter reads "mock"), but not simulated.
+            return DeviceInfo(manufacturer="Acme", model="Band", identifiers={"mock": "1"})
+
+    sink = RecordingSink()
+    orchestrator = Orchestrator(
+        _RealLookingMock(EmissionMode.VALID, interval=0.0, count=2),
+        _make_chain(),
+        ScalarVitalMapper(),
+        [sink],
+        patient_ref=_PATIENT_REF,
+        device_ref=_DEVICE_REF,
+    )
+
+    asyncio.run(orchestrator.run())
+
+    assert len(sink.received) == 2
+    assert all(not observation.meta.security for observation in sink.received)

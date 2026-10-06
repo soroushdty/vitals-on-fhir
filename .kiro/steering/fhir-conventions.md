@@ -21,7 +21,12 @@ The following fields are required on every Observation produced by this project.
   "resourceType": "Observation",
   "id": "<uuid>",
   "meta": {
-    "profile": ["<vital_class.us_core_profile>"]
+    "profile": ["<vital_class.us_core_profile>"],
+    "security": [{                      // only for a simulated device
+      "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+      "code": "HTEST",
+      "display": "test health data"
+    }]
   },
   "status": "final",
   "category": [{
@@ -29,6 +34,12 @@ The following fields are required on every Observation produced by this project.
       "system": "http://terminology.hl7.org/CodeSystem/observation-category",
       "code": "vital-signs",
       "display": "Vital Signs"
+    }]
+  }, {
+    "coding": [{
+      "system": "http://hl7.org/fhir/uv/phd/CodeSystem/PhdObservationCategories",
+      "code": "phd",
+      "display": "PHD generated Observation"
     }]
   }],
   "code": {
@@ -39,6 +50,7 @@ The following fields are required on every Observation produced by this project.
     }]
   },
   "subject": { "reference": "Patient/<VOF_PATIENT_ID>" },
+  "performer": [{ "reference": "Patient/<VOF_PATIENT_ID>" }],
   "device":  { "reference": "Device/<device_id>" },
   "effectiveDateTime": "<vital.effective as ISO 8601 UTC>",
   "issued": "<processing time as ISO 8601 UTC>",
@@ -56,7 +68,9 @@ Rules:
 - `effectiveDateTime` comes from `vital.effective` (timezone-aware; convert to UTC ISO 8601).
 - `issued` is set by the mapper at processing time, not by the adapter. Always set both fields.
 - `subject` and `device` are relative references only — no absolute URLs in the MVP.
-- Do not add extra fields, extensions, or narrative (`text`) unless a US Core profile explicitly requires them.
+- Every Observation is marked as patient-generated: the PHD `phd` category after `vital-signs`, and `performer` set to the same Patient as `subject` (ADR-0002).
+- Observations from a simulated device (`DeviceInfo.simulated`) carry the `HTEST` security label, and so does the simulated Device. The orchestrator adds it with `mark_simulated`, so it applies whichever mapper built the Observation.
+- Do not add extra fields, extensions, or narrative (`text`) unless a US Core profile explicitly requires them, or a US Core Must Support element or a published HL7 IG calls for them and an ADR records the choice (as ADR-0002 does for the fields above). Do not use codes the validator cannot resolve in a published code system (e.g. the draft US Core `patient-supplied` tag).
 
 ## How class metadata drives mapping
 
@@ -69,7 +83,8 @@ Rules:
 | `code.coding[0].system` | hardcoded `"http://loinc.org"` |
 | `valueQuantity.code` | `vital_class.ucum_unit` |
 | `valueQuantity.system` | hardcoded `"http://unitsofmeasure.org"` |
-| `category` | hardcoded vital-signs coding |
+| `category` | hardcoded vital-signs coding, then the PHD `phd` coding |
+| `performer` | the `patient_ref` passed to the mapper |
 
 A new `ScalarVital` subclass with correct metadata automatically produces a valid Observation with no mapper code.
 

@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from vitals_on_fhir.adapters.base import DeviceAdapter
-from vitals_on_fhir.fhir import resolve_mapper
+from vitals_on_fhir.fhir import mark_simulated, resolve_mapper
 from vitals_on_fhir.fhir.base import VitalMapper
 from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.validation.base import ValidatorChain
@@ -85,7 +85,8 @@ class Orchestrator:
         is validated; rejected readings are logged at ``INFO`` (validator name
         and reason, **never the measurement value**) and skipped. Accepted
         readings are mapped to a FHIR Observation via
-        :func:`resolve_mapper` and fanned out to every registered sink. A
+        :func:`resolve_mapper`, labelled as test data when the adapter's device
+        is simulated, and fanned out to every registered sink. A
         failing sink is caught and logged so the remaining sinks still receive
         the Observation.
 
@@ -115,6 +116,8 @@ class Orchestrator:
                     self._device_ref,
                     issued=datetime.now(tz=UTC),
                 )
+                if self._adapter.device_info.simulated:
+                    observation = mark_simulated(observation)
             except Exception:
                 logger.exception(
                     "Failed to build Observation for a reading from %s; skipping.",
