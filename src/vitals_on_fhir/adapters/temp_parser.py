@@ -15,8 +15,9 @@ blood-pressure parser).
 Protocol source: Bluetooth SIG Health Thermometer Service (``0x1809``) /
 Temperature Measurement characteristic (``0x2A1C``); see
 ``docs/protocol-body-temperature-measurement.md``. The temperature value is a
-single 32-bit FLOAT; the optional temperature-type field is length-accounted
-only and not modelled in the reading.
+single 32-bit FLOAT. The optional Temperature Type field (where on the body the
+temperature was taken, GSS Table 3.370) becomes ``body_site``; "Body (general)"
+and reserved values leave it unset (ADR-0006).
 
 Timezone note: the characteristic's optional date-time field carries no
 timezone. Per the project's local-home-monitoring assumption, a decoded device
@@ -34,7 +35,7 @@ from typing import NamedTuple
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
 from vitals_on_fhir.adapters.datetime_field import TIMESTAMP_SIZE, decode_timestamp
 from vitals_on_fhir.adapters.sfloat import FLOAT_SIZE, decode_float
-from vitals_on_fhir.vitals.base import VitalSign
+from vitals_on_fhir.vitals.base import BodySite, VitalSign
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
 
 __all__ = [
@@ -52,7 +53,21 @@ _FLAG_UNIT_FAHRENHEIT = 0x01  # bit 0: 0 -> Celsius, 1 -> Fahrenheit
 _FLAG_TIMESTAMP_PRESENT = 0x02  # bit 1: date-time field present (7 bytes)
 _FLAG_TEMPERATURE_TYPE_PRESENT = 0x04  # bit 2: temperature-type field present (1 byte)
 
-_TEMPERATURE_TYPE_SIZE = 1  # bytes (length-accounted only, not modelled)
+_TEMPERATURE_TYPE_SIZE = 1  # bytes
+
+# Temperature Type values with a specific site (GSS 2026-09-09, Table 3.370).
+# 2 "Body (general)" names no specific site, and 0 and 10-255 are reserved, so
+# they are absent and give no body site.
+_TEMPERATURE_TYPE_SITES: dict[int, BodySite] = {
+    1: BodySite.ARMPIT,
+    3: BodySite.EARLOBE,  # "Ear (usually earlobe)"
+    4: BodySite.FINGER,
+    5: BodySite.GASTROINTESTINAL_TRACT,
+    6: BodySite.MOUTH,
+    7: BodySite.RECTUM,
+    8: BodySite.TOE,
+    9: BodySite.TYMPANUM,  # "Tympanum (ear drum)"
+}
 
 # The mandatory temperature FLOAT follows the flags byte (offset 1); an optional
 # timestamp follows the FLOAT (offset 1 + FLOAT_SIZE).
@@ -84,8 +99,7 @@ def required_length(flags: TempFlags) -> int:
     """Return the minimum payload length the flags byte declares.
 
     Accounts for the flags byte, the mandatory temperature FLOAT, and each
-    optional field the flags declare present (timestamp, temperature type). The
-    temperature-type field is length-accounted only; it is never decoded.
+    optional field the flags declare present (timestamp, temperature type).
     """
     length = 1 + FLOAT_SIZE
     if flags.timestamp_present:
@@ -182,8 +196,15 @@ class TemperatureMeasurementParser(GattCharacteristicParser):
         else:
             effective = self._now()
 
+        body_site = None
+        if flags.temperature_type_present:
+            # The Temperature Type follows the FLOAT and the optional timestamp.
+            offset = _TIMESTAMP_OFFSET + (TIMESTAMP_SIZE if flags.timestamp_present else 0)
+            body_site = _TEMPERATURE_TYPE_SITES.get(data[offset])
+
         return BodyTemperature(
             effective=effective,
             device_id=self._device_id,
             value=temp,
+            body_site=body_site,
         )

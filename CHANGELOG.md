@@ -5,6 +5,25 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-06] — Body-temperature measurement site in bodySite
+
+Thermometers can report where the temperature was taken, but the parser skipped
+that field, and readings from different sites are not directly comparable. The
+site now reaches `Observation.bodySite` as a SNOMED CT concept, and the HL7 FHIR
+validator accepts every code against US Core Body Temperature (ADR-0006, issue #11).
+
+- Added: `docs/adr-0006-temperature-measurement-site.md`
+- Added: `vitals.BodySite` (SNOMED CT code and display); `VitalSign.body_site`
+  (default `None`)
+- Changed: `TemperatureMeasurementParser` decodes Temperature Type (GSS
+  Table 3.370); "Body (general)" and reserved values give no site
+- Changed: `ScalarVitalMapper` and `ComponentVitalMapper` set `bodySite` when a
+  site is known
+- Changed: steering `fhir-conventions.md` (when `bodySite` and similar device
+  context may be added) and `object-model.md`;
+  `docs/protocol-body-temperature-measurement.md` (site table, codes, and the static
+  Temperature Type characteristic, which is not read yet)
+
 ## [2026-10-06] — Honour device-reported measurement status
 
 Blood-pressure cuffs and pulse oximeters report whether a reading is trustworthy,

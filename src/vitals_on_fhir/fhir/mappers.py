@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 _LOINC_SYSTEM = "http://loinc.org"
 _UCUM_SYSTEM = "http://unitsofmeasure.org"
 _CATEGORY_SYSTEM = "http://terminology.hl7.org/CodeSystem/observation-category"
+_SNOMED_SYSTEM = "http://snomed.info/sct"
 
 
 def _to_utc_isoformat(moment: datetime) -> str:
@@ -66,6 +67,17 @@ def _loinc_codings(vital_class: type[VitalSign]) -> list[dict[str, str]]:
     """
     codes = (vital_class.loinc_code, *vital_class.additional_loinc_codes)
     return [{"system": _LOINC_SYSTEM, "code": code} for code in codes]
+
+
+def _add_body_site(data: dict[str, object], vital: VitalSign) -> None:
+    """Set ``bodySite`` from ``vital.body_site``; leave it out when no site is known (ADR-0006)."""
+    site = vital.body_site
+    if site is not None:
+        data["bodySite"] = {
+            "coding": [
+                {"system": _SNOMED_SYSTEM, "code": site.snomed_code, "display": site.snomed_display}
+            ]
+        }
 
 
 class ScalarVitalMapper(VitalMapper):
@@ -146,6 +158,7 @@ class ScalarVitalMapper(VitalMapper):
                 "code": vital_class.ucum_unit,
             },
         }
+        _add_body_site(data, vital)
         return Observation.model_validate(data)
 
 
@@ -244,4 +257,5 @@ class ComponentVitalMapper(VitalMapper):
             "issued": _to_utc_isoformat(issued),
             "component": components,
         }
+        _add_body_site(data, vital)
         return Observation.model_validate(data)

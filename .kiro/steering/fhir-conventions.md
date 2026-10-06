@@ -71,7 +71,8 @@ Rules:
 - `subject` and `device` are relative references only — no absolute URLs in the MVP.
 - Every Observation is marked as patient-generated: the PHD `phd` category after `vital-signs`, and `performer` set to the same Patient as `subject` (ADR-0002).
 - Observations from a simulated device (`DeviceInfo.simulated`) carry the `HTEST` security label, and so does the simulated Device. The orchestrator adds it with `mark_simulated`, so it applies whichever mapper built the Observation.
-- Do not add extra fields, extensions, or narrative (`text`) unless a US Core profile explicitly requires them, or a US Core Must Support element or a published HL7 IG calls for them and an ADR records the choice (as ADR-0002 does for the fields above). Do not use codes the validator cannot resolve in a published code system (e.g. the draft US Core `patient-supplied` tag).
+- `bodySite` is set only when the device reports a specific site (`vital.body_site`, a SNOMED CT body-structure concept), and is omitted otherwise (ADR-0006).
+- Do not add extra fields, extensions, or narrative (`text`) unless a US Core profile explicitly requires them, or a US Core Must Support element or a published HL7 IG calls for them and an ADR records the choice (as ADR-0002 does for the fields above). A core Observation element that carries measurement context the device itself reports (such as `bodySite`) may also be added when an ADR records the choice and the codes, and the validator accepts the result (ADR-0006). Do not use codes the validator cannot resolve in a published code system (e.g. the draft US Core `patient-supplied` tag).
 
 ## How class metadata drives mapping
 
@@ -87,6 +88,7 @@ Rules:
 | `valueQuantity.system` | hardcoded `"http://unitsofmeasure.org"` |
 | `category` | hardcoded vital-signs coding, then the PHD `phd` coding |
 | `performer` | the `patient_ref` passed to the mapper |
+| `bodySite` | `vital.body_site` (SNOMED CT), omitted when `None` |
 
 A new `ScalarVital` subclass with correct metadata automatically produces a valid Observation with no mapper code.
 
