@@ -44,6 +44,7 @@
 # Device
 # adapter: mock          # mock / mock-* (simulated) | miband10 | bp | spo2 | temp | weight | package.module.ClassName
 # device_name:           # optional BLE device name filter (omit to connect to first match)
+# device_user_id:        # multi-user cuff/scale: the device user (0-254) to record; others are rejected
 
 # Mock adapter (--adapter mock): seconds between simulated readings. The rhythm
 # (normal, bradycardia, tachycardia, AF) is chosen with buttons on the dashboard.

@@ -78,6 +78,7 @@ from vitals_on_fhir.pipeline import ObservationSink, Orchestrator
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.validation import (
     ComponentRangeValidator,
+    DeviceUserValidator,
     DuplicateValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
@@ -187,7 +188,10 @@ def _resolve_adapter(
         return MiBand10Adapter(device_name=settings.device_name, on_state_change=on_state_change)
     if adapter_spec == "bp":
         return BloodPressureBleAdapter(
-            device_name=settings.device_name, tz=tz, on_state_change=on_state_change
+            device_name=settings.device_name,
+            tz=tz,
+            on_state_change=on_state_change,
+            device_user_id=settings.device_user_id,
         )
     if adapter_spec == "spo2":
         return PulseOximeterBleAdapter(
@@ -203,7 +207,10 @@ def _resolve_adapter(
         return MockThermometerAdapter()
     if adapter_spec == "weight":
         return WeightScaleBleAdapter(
-            device_name=settings.device_name, tz=tz, on_state_change=on_state_change
+            device_name=settings.device_name,
+            tz=tz,
+            on_state_change=on_state_change,
+            device_user_id=settings.device_user_id,
         )
     if adapter_spec == "mock-weight":
         return MockWeightAdapter()
@@ -349,6 +356,7 @@ def _build_orchestrator(
         [
             PlausibleRangeValidator(overrides=scalar_overrides),
             SensorContactValidator(),
+            DeviceUserValidator(),
             ComponentRangeValidator(bp_overrides),
             DuplicateValidator(),
         ]

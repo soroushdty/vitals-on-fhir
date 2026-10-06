@@ -52,6 +52,7 @@ class BloodPressureBleAdapter(DeviceAdapter):
         on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
+        device_user_id: int | None = None,
     ) -> None:
         """Initialize the adapter, composing a Blood Pressure Service lifecycle.
 
@@ -67,9 +68,13 @@ class BloodPressureBleAdapter(DeviceAdapter):
             tz: Optional timezone in which to interpret a device-supplied zoneless
                 timestamp, forwarded to the parser. ``None`` preserves host-local
                 behavior.
+            device_user_id: Optional configured device user ID
+                (``VOF_DEVICE_USER_ID``), forwarded to the parser, which compares
+                each reading's user ID with it (ADR-0004).
         """
         self._now = now
         self._tz = tz
+        self._device_user_id = device_user_id
         self._connection = BleConnection(
             service_uuid=BLOOD_PRESSURE_SERVICE_UUID,
             characteristic_uuid=BLOOD_PRESSURE_MEASUREMENT_UUID,
@@ -130,4 +135,5 @@ class BloodPressureBleAdapter(DeviceAdapter):
             device_id=self.device_info.identifiers["profile"],
             now=self._now,
             tz=self._tz,
+            device_user_id=self._device_user_id,
         )

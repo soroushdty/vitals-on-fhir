@@ -21,9 +21,10 @@ temperature parsers too).
 Protocol source: Bluetooth SIG Weight Scale Service (``0x181D``) / Weight
 Measurement characteristic (``0x2A9D``); see
 ``docs/protocol-weight-measurement.md``. This slice decodes only the weight
-value; the optional user-ID, BMI, and height fields are length-accounted only
-and not modelled in the reading, and the user ID is never decoded, logged, or
-stored.
+value; the optional BMI and height fields are length-accounted only and not
+modelled in the reading. The optional user ID is decoded only to compare with
+the configured ``VOF_DEVICE_USER_ID``: the reading keeps the outcome
+(``device_user``), never the ID, and the ID is never logged (ADR-0004).
 
 Timezone note: the characteristic's optional date-time field carries no
 timezone. Per the project's local-home-monitoring assumption, a decoded device
@@ -40,7 +41,7 @@ from typing import NamedTuple
 
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
 from vitals_on_fhir.adapters.datetime_field import TIMESTAMP_SIZE, decode_timestamp
-from vitals_on_fhir.vitals.base import VitalSign
+from vitals_on_fhir.vitals.base import DeviceUserMatch, VitalSign
 from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 
 __all__ = [
@@ -61,7 +62,7 @@ _FLAG_BMI_HEIGHT_PRESENT = 0x08  # bit 3: BMI + height fields present (2 x uint1
 
 # Field sizes (bytes).
 _WEIGHT_SIZE = 2  # mandatory uint16 weight
-_USER_ID_SIZE = 1  # optional user-ID (length-accounted only, never decoded)
+_USER_ID_SIZE = 1  # optional user-ID (decoded only to compare, never kept)
 _BMI_HEIGHT_SIZE = 4  # optional BMI uint16 + height uint16 (length-accounted only)
 
 # Unit-dependent scaling factors (see module docstring / design §2).
@@ -102,8 +103,7 @@ def required_length(flags: WeightFlags) -> int:
 
     Accounts for the flags byte, the mandatory uint16 weight, and each optional
     field the flags declare present (timestamp, user ID, BMI + height). The
-    user-ID and BMI/height fields are length-accounted only; they are never
-    decoded.
+    BMI/height fields are length-accounted only; they are never decoded.
     """
     length = 1 + _WEIGHT_SIZE
     if flags.timestamp_present:
@@ -145,6 +145,7 @@ class WeightMeasurementParser(GattCharacteristicParser):
         device_id: str,
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
+        device_user_id: int | None = None,
     ) -> None:
         """Create a parser bound to a device identity and clock.
 
@@ -159,9 +160,14 @@ class WeightMeasurementParser(GattCharacteristicParser):
                 behavior; a non-``None`` value interprets the device wall-clock
                 as being in that zone. The ``now`` fallback (no-timestamp path)
                 is unaffected.
+            device_user_id: The configured device user ID
+                (``VOF_DEVICE_USER_ID``), or ``None`` when unset. A reading's
+                user ID is decoded only to compare with this value; the outcome is
+                kept as ``device_user`` and the ID itself is discarded.
         """
         self._device_id = device_id
         self._tz = tz
+        self._device_user_id = device_user_id
         self._now: Callable[[], datetime] = (
             now if now is not None else (lambda: datetime.now().astimezone())
         )
@@ -204,8 +210,15 @@ class WeightMeasurementParser(GattCharacteristicParser):
         else:
             effective = self._now()
 
+        device_user = None
+        if flags.user_id_present:
+            # The user ID follows the weight and the optional timestamp.
+            offset = _TIMESTAMP_OFFSET + (TIMESTAMP_SIZE if flags.timestamp_present else 0)
+            device_user = DeviceUserMatch.compare(data[offset], self._device_user_id)
+
         return BodyWeight(
             effective=effective,
             device_id=self._device_id,
             value=value_kg,
+            device_user=device_user,
         )

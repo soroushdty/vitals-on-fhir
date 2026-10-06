@@ -5,6 +5,7 @@ from vitals_on_fhir.vitals.base import (
     ComponentSpec,
     ComponentVital,
     DeviceInfo,
+    DeviceUserMatch,
     ScalarVital,
     VitalSign,
 )
@@ -26,5 +27,6 @@ __all__ = [
     "BodyTemperature",
     "BodyWeight",
     "DeviceInfo",
+    "DeviceUserMatch",
     "ComponentSpec",
 ]

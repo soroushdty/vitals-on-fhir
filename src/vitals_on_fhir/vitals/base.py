@@ -8,6 +8,7 @@ standard library — no other vitals_on_fhir packages are imported here.
 from __future__ import annotations
 
 import abc
+import enum
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar
@@ -205,6 +206,41 @@ def _is_classvar_annotation(annotation: object) -> bool:
     return getattr(annotation, "__class__", None) is not None and str(annotation).startswith(
         "typing.ClassVar"
     )
+
+
+class DeviceUserMatch(enum.Enum):
+    """Whether a reading's device-assigned user ID belongs to the configured user.
+
+    Multi-user blood-pressure cuffs and weight scales tag each reading with a
+    one-byte user ID. The parser compares it with ``VOF_DEVICE_USER_ID`` and
+    keeps only the outcome, so the ID itself never enters the domain object,
+    logs, or FHIR (ADR-0004). A reading from a device that reports no user ID
+    carries ``None`` instead of a member.
+    """
+
+    MATCH = "match"
+    """The reported user ID equals the configured one."""
+
+    MISMATCH = "mismatch"
+    """The reported user ID differs, including the "unknown user" value ``0xFF``."""
+
+    NOT_CONFIGURED = "not_configured"
+    """The device reports a user ID, but no user ID is configured."""
+
+    @classmethod
+    def compare(cls, reported: int, expected: int | None) -> DeviceUserMatch:
+        """Compare a reported device user ID with the configured one.
+
+        Args:
+            reported: The user ID decoded from the reading.
+            expected: The configured user ID, or ``None`` when none is set.
+
+        Returns:
+            The match outcome. The IDs themselves are not kept.
+        """
+        if expected is None:
+            return cls.NOT_CONFIGURED
+        return cls.MATCH if reported == expected else cls.MISMATCH
 
 
 @dataclass(frozen=True)

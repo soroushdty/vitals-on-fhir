@@ -39,8 +39,9 @@ Rules that apply to all code in this repository:
 
 - Measurement values (heart-rate numbers) must not appear in log messages at `INFO` level or above (NFR-5). They may appear at `DEBUG`.
 - Secrets must not appear at any log level.
+- A device-assigned user ID (multi-user cuffs and scales) must not appear at any log level, on a domain object, in the store, or in FHIR. Parsers decode it only to compare with `VOF_DEVICE_USER_ID` (ADR-0004).
 - Log at `INFO`: connection events (connected, disconnected, reconnecting), validation rejections (without the rejected value), startup/shutdown.
-- Log at `DEBUG`: parsed payloads, raw bytes, detailed state transitions.
+- Log at `DEBUG`: parsed payloads, raw bytes, detailed state transitions. Exception: never log the raw bytes of a payload that can carry a user ID (Blood Pressure Measurement, Weight Measurement); log its length instead.
 - Log at `ERROR`: resource construction failures, unhandled exceptions at the orchestrator boundary.
 - Use `logging.getLogger(__name__)` in every module. Never use the root logger directly.
 

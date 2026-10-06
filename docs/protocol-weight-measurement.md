@@ -50,10 +50,10 @@ fields. The parser decodes each field per the GATT Specification Supplement:
   (`effective`) time, enabling store-and-forward. When absent, the parser stamps
   the reading with the processing time (an injectable, timezone-aware local
   clock).
-- **Bit 2 — User ID present**: when set, a 1-byte user-ID field follows. It is
-  accounted for when computing the minimum payload length, but is **never decoded,
-  logged, or stored** (see the privacy note below); no per-user identifier enters
-  the pipeline.
+- **Bit 2 — User ID present**: when set, a 1-byte user-ID field follows the
+  weight and the optional timestamp. It is decoded **only to compare** with
+  `VOF_DEVICE_USER_ID` and is **never logged or stored** (see the privacy note
+  below).
 - **Bit 3 — BMI and Height present**: when set, a BMI uint16 and a height uint16
   (4 bytes total) follow. They are accounted for when computing the minimum
   payload length, but are not decoded into the reading.
@@ -88,11 +88,16 @@ and the shared `decode_timestamp` helper.
 ## Privacy note — the optional user-ID field
 
 The Weight Measurement characteristic can carry a device-assigned user ID (flags
-bit 2), which some multi-user scales use to route a reading to a stored profile.
-This project does not support multiple users, and treats the user ID as
-length-accounted only: it is never decoded, logged, or stored, so no per-user
-identifier enters the pipeline. This is consistent with the security and privacy
-rules in `.kiro/steering/security-privacy.md`.
+bit 2), which multi-user scales use to route a reading to a stored profile; `0xFF`
+means "unknown user" (a guest). This project records one Patient, so it must not
+file another household member's weight under that Patient (#8, ADR-0004).
+
+The parser decodes the user ID only to compare it with `VOF_DEVICE_USER_ID`, and
+keeps the outcome (`device_user`) on the reading, never the ID. `DeviceUserValidator`
+rejects readings from other users or the unknown user, and every reading from a
+multi-user scale while the setting is unset. The ID is never logged, stored, or put
+into FHIR, so no per-user identifier enters the pipeline. This is consistent with
+the security and privacy rules in `.kiro/steering/security-privacy.md`.
 
 ## Range rationale — the `(2.0, 650.0)` kg plausibility bounds
 

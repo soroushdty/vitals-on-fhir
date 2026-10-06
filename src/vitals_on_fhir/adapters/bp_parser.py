@@ -17,6 +17,11 @@ Measurement characteristic (see ``docs/protocol-blood-pressure-measurement.md``)
 Systolic, diastolic, and mean-arterial-pressure are three consecutive SFLOATs;
 only systolic and diastolic are used (MAP is device-derived and not modelled).
 
+User ID: a multi-user cuff tags each reading with a one-byte user ID. It is
+decoded only to compare with the configured ``VOF_DEVICE_USER_ID``; the reading
+keeps the outcome (``device_user``), never the ID, and the ID is never logged
+(ADR-0004).
+
 Timezone note: the characteristic's date-time field carries no timezone. Per the
 project's local-home-monitoring assumption, a decoded device timestamp is
 interpreted as the host's local time and returned timezone-aware.
@@ -31,7 +36,7 @@ from typing import NamedTuple
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
 from vitals_on_fhir.adapters.datetime_field import TIMESTAMP_SIZE, decode_timestamp
 from vitals_on_fhir.adapters.sfloat import SFLOAT_SIZE, decode_sfloat
-from vitals_on_fhir.vitals.base import VitalSign
+from vitals_on_fhir.vitals.base import DeviceUserMatch, VitalSign
 from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
 
 __all__ = [
@@ -53,7 +58,7 @@ _FLAG_MEASUREMENT_STATUS_PRESENT = 0x10  # bit 4: measurement-status field prese
 
 _TIMESTAMP_SIZE = TIMESTAMP_SIZE  # bytes (shared org.bluetooth date-time size)
 _PULSE_RATE_SIZE = 2  # bytes
-_USER_ID_SIZE = 1  # bytes
+_USER_ID_SIZE = 1  # bytes (decoded only to compare, never kept)
 _MEASUREMENT_STATUS_SIZE = 2  # bytes
 
 # Three SFLOATs (systolic, diastolic, MAP) follow the flags byte.
@@ -107,6 +112,16 @@ def required_length(flags: BpFlags) -> int:
     return length
 
 
+def _user_id_offset(flags: BpFlags) -> int:
+    """Return the offset of the user-ID byte, which follows timestamp and pulse rate."""
+    offset = 1 + 3 * SFLOAT_SIZE
+    if flags.timestamp_present:
+        offset += _TIMESTAMP_SIZE
+    if flags.pulse_rate_present:
+        offset += _PULSE_RATE_SIZE
+    return offset
+
+
 def kpa_to_mmhg(value: float) -> float:
     """Convert a pressure in kPa to mmHg."""
     return value * _MMHG_PER_KPA
@@ -127,6 +142,7 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
         device_id: str,
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
+        device_user_id: int | None = None,
     ) -> None:
         """Create a parser bound to a device identity and clock.
 
@@ -141,9 +157,14 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
                 behavior; a non-``None`` value interprets the device wall-clock
                 as being in that zone. The ``now`` fallback (no-timestamp path)
                 is unaffected.
+            device_user_id: The configured device user ID
+                (``VOF_DEVICE_USER_ID``), or ``None`` when unset. A reading's
+                user ID is decoded only to compare with this value; the outcome is
+                kept as ``device_user`` and the ID itself is discarded.
         """
         self._device_id = device_id
         self._tz = tz
+        self._device_user_id = device_user_id
         self._now: Callable[[], datetime] = (
             now if now is not None else (lambda: datetime.now().astimezone())
         )
@@ -183,9 +204,16 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
         else:
             effective = self._now()
 
+        device_user = None
+        if flags.user_id_present:
+            device_user = DeviceUserMatch.compare(
+                data[_user_id_offset(flags)], self._device_user_id
+            )
+
         return BloodPressure(
             effective=effective,
             device_id=self._device_id,
             systolic=systolic,
             diastolic=diastolic,
+            device_user=device_user,
         )

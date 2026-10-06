@@ -12,10 +12,12 @@ from hypothesis import strategies as st
 
 from vitals_on_fhir.validation.base import ValidationResult, Validator, ValidatorChain
 from vitals_on_fhir.validation.builtin.validators import (
+    DeviceUserValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
 )
-from vitals_on_fhir.vitals.base import ScalarVital, VitalSign
+from vitals_on_fhir.vitals.base import DeviceUserMatch, ScalarVital, VitalSign
+from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
 
 
@@ -336,3 +338,42 @@ def test_rejection_reason_names_bounds_not_value() -> None:
     assert "40.0" in result.reason
     assert "60.0" in result.reason
     assert "200" not in result.reason
+
+
+def _weight(device_user: DeviceUserMatch | None) -> BodyWeight:
+    return BodyWeight(
+        effective=datetime(2026, 10, 6, tzinfo=UTC),
+        device_id="scale",
+        value=70.0,
+        device_user=device_user,
+    )
+
+
+def test_device_user_validator_accepts_a_match_or_no_user_id() -> None:
+    """A matching user, or a device that reports no user ID, is accepted."""
+    validator = DeviceUserValidator()
+    assert validator.check(_weight(DeviceUserMatch.MATCH)).accepted is True
+    assert validator.check(_weight(None)).accepted is True
+
+
+def test_device_user_validator_rejects_another_user() -> None:
+    """Another user's reading, or the "unknown user", is rejected without its value."""
+    result = DeviceUserValidator().check(_weight(DeviceUserMatch.MISMATCH))
+    assert result.accepted is False
+    assert result.validator_name == "device_user"
+    assert result.reason is not None
+    assert "70" not in result.reason
+
+
+def test_device_user_validator_rejects_an_unconfigured_multi_user_device() -> None:
+    """With no user configured, a multi-user device's reading is rejected (ADR-0004)."""
+    result = DeviceUserValidator().check(_weight(DeviceUserMatch.NOT_CONFIGURED))
+    assert result.accepted is False
+    assert result.reason is not None
+    assert "VOF_DEVICE_USER_ID" in result.reason
+
+
+def test_device_user_validator_ignores_vitals_without_the_field() -> None:
+    """A vital that has no ``device_user`` field (e.g. heart rate) is accepted."""
+    reading = HeartRate(effective=datetime(2026, 10, 6, tzinfo=UTC), device_id="hr", value=72.0)
+    assert DeviceUserValidator().check(reading).accepted is True

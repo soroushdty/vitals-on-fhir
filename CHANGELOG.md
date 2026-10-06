@@ -5,6 +5,28 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-06] — Record only the configured user on shared devices
+
+Multi-user blood-pressure cuffs and weight scales tag each reading with a user ID,
+which was ignored, so one person's readings could be filed under another's Patient.
+The parsers now compare that ID with a configured user and reject the rest, without
+ever keeping the ID. The decision and the reject-by-default choice are in ADR-0004
+(issue #8).
+
+- Added: `docs/adr-0004-attribute-multi-user-device-readings.md`
+- Added: `VOF_DEVICE_USER_ID` (`Settings.device_user_id`, 0–254, default unset)
+- Added: `vitals.DeviceUserMatch`; `BloodPressure.device_user` and
+  `BodyWeight.device_user` (default `None`)
+- Added: `validation.DeviceUserValidator`, in the default validator chain
+- Changed: `BloodPressureMeasurementParser`, `WeightMeasurementParser`,
+  `BloodPressureBleAdapter` and `WeightScaleBleAdapter` take `device_user_id`
+- Changed: steering `security-privacy.md` (the user ID is never logged; no raw
+  payload bytes for BP or weight) and `object-model.md`; protocol docs, README,
+  `.env.example`, `config.yaml.example`
+- **Breaking:** a multi-user cuff or scale records nothing until
+  `VOF_DEVICE_USER_ID` is set. Single-user devices and the mock adapters are
+  unaffected
+
 ## [2026-10-06] — SpO2 Observations carry LOINC 2708-6
 
 US Core Pulse Oximetry and the base FHIR `oxygensat` profile require LOINC 2708-6 next to

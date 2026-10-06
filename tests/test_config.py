@@ -121,6 +121,29 @@ def test_empty_device_name_is_unset(
     assert Settings().device_name is None
 
 
+def test_device_user_id_loads_and_empty_is_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``VOF_DEVICE_USER_ID`` is an int; empty (the ``.env.example`` value) means unset."""
+    monkeypatch.chdir(tmp_path)
+    _write_env(tmp_path, "VOF_DEVICE_USER_ID=\n")
+    assert Settings().device_user_id is None
+
+    _write_env(tmp_path, "VOF_DEVICE_USER_ID=3\n")
+    assert Settings().device_user_id == 3
+
+
+@pytest.mark.parametrize("value", ["255", "-1", "two"])
+def test_device_user_id_rejects_unknown_user_and_invalid_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """0xFF is the Bluetooth "unknown user", so only 0-254 can be configured."""
+    monkeypatch.chdir(tmp_path)
+    _write_env(tmp_path, f"VOF_DEVICE_USER_ID={value}\n")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
 def test_demo_mode_can_be_turned_off_from_env_or_yaml(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

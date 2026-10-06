@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from vitals_on_fhir.vitals.base import ComponentSpec, ComponentVital
+from vitals_on_fhir.vitals.base import ComponentSpec, ComponentVital, DeviceUserMatch
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -53,3 +53,10 @@ class BloodPressure(ComponentVital):
 
     diastolic: float
     """Diastolic pressure in ``mm[Hg]``."""
+
+    device_user: DeviceUserMatch | None = None
+    """Whether the device-assigned user ID matches ``VOF_DEVICE_USER_ID``.
+
+    ``None`` means the device reports no user ID (a single-user device). The ID
+    itself is never kept; see :class:`~vitals_on_fhir.vitals.DeviceUserMatch`.
+    """
