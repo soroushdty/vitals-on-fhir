@@ -13,8 +13,15 @@ Protocol source: Bluetooth SIG Pulse Oximeter Service / PLX Continuous
 Measurement characteristic (see ``docs/protocol-pulse-oximeter-measurement.md``).
 The mandatory part is the flags byte followed by the SpO2-PR normal pair (two
 consecutive SFLOATs: SpO2 then pulse rate). Only the SpO2 value is decoded into
-the reading; the pulse-rate SFLOAT and the optional fields are accounted for in
-the required-length calculation but not modelled.
+the reading; the pulse-rate SFLOAT, the fast and slow pairs, and the pulse
+amplitude index are accounted for in the required-length calculation but not
+modelled.
+
+Measurement Status and Device and Sensor Status: the bits saying the reading
+cannot be trusted or is not final become ``device_issues`` on the reading
+(PLXS v1.0.1 Tables 3.4 and 3.5). "Validated data", "fully qualified data" and
+"extended display update ongoing" are not problems, so they are not kept
+(ADR-0005).
 
 Timezone note: the Continuous Measurement characteristic carries no timestamp,
 so a reading's ``effective`` time is the processing time (``now()``), returned
@@ -29,7 +36,7 @@ from typing import NamedTuple
 
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
 from vitals_on_fhir.adapters.sfloat import SFLOAT_SIZE, decode_sfloat
-from vitals_on_fhir.vitals.base import VitalSign
+from vitals_on_fhir.vitals.base import DeviceIssue, VitalSign
 from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 
 __all__ = [
@@ -50,6 +57,41 @@ _SPO2PR_PAIR_SIZE = 2 * SFLOAT_SIZE  # an SpO2 + pulse-rate SFLOAT pair
 _MEASUREMENT_STATUS_SIZE = 2
 _DEVICE_SENSOR_STATUS_SIZE = 3
 _PULSE_AMPLITUDE_INDEX_SIZE = SFLOAT_SIZE
+
+# Measurement Status bits that make a reading untrustworthy or not final (PLXS Table 3.4).
+# Bits 7 (validated data) and 8 (fully qualified data) are good news, so absent.
+_MEASUREMENT_STATUS_ISSUES: tuple[tuple[int, DeviceIssue], ...] = (
+    (1 << 5, DeviceIssue.MEASUREMENT_ONGOING),
+    (1 << 6, DeviceIssue.EARLY_ESTIMATE),
+    # A continuous measurement has no timestamp, so a stored one would get the wrong time.
+    (1 << 9, DeviceIssue.DATA_FROM_STORAGE),
+    (1 << 10, DeviceIssue.DEMONSTRATION_DATA),
+    (1 << 11, DeviceIssue.TEST_DATA),
+    (1 << 12, DeviceIssue.CALIBRATION_ONGOING),
+    (1 << 13, DeviceIssue.MEASUREMENT_UNAVAILABLE),
+    (1 << 14, DeviceIssue.QUESTIONABLE_MEASUREMENT),
+    (1 << 15, DeviceIssue.INVALID_MEASUREMENT),
+)
+
+# Device and Sensor Status bits that make a reading untrustworthy (PLXS Table 3.5).
+# Bit 0 (extended display update ongoing) says nothing about the reading, so absent.
+_DEVICE_SENSOR_STATUS_ISSUES: tuple[tuple[int, DeviceIssue], ...] = (
+    (1 << 1, DeviceIssue.EQUIPMENT_MALFUNCTION),
+    (1 << 2, DeviceIssue.SIGNAL_PROCESSING_IRREGULARITY),
+    (1 << 3, DeviceIssue.INADEQUATE_SIGNAL),
+    (1 << 4, DeviceIssue.POOR_SIGNAL),
+    (1 << 5, DeviceIssue.LOW_PERFUSION),
+    (1 << 6, DeviceIssue.ERRATIC_SIGNAL),
+    (1 << 7, DeviceIssue.NON_PULSATILE_SIGNAL),
+    (1 << 8, DeviceIssue.QUESTIONABLE_PULSE),
+    (1 << 9, DeviceIssue.SIGNAL_ANALYSIS_ONGOING),
+    (1 << 10, DeviceIssue.SENSOR_INTERFERENCE),
+    (1 << 11, DeviceIssue.SENSOR_UNCONNECTED),
+    (1 << 12, DeviceIssue.UNKNOWN_SENSOR),
+    (1 << 13, DeviceIssue.SENSOR_DISPLACED),
+    (1 << 14, DeviceIssue.SENSOR_MALFUNCTIONING),
+    (1 << 15, DeviceIssue.SENSOR_DISCONNECTED),
+)
 
 # Mandatory SpO2-PR normal pair follows the flags byte: SpO2 SFLOAT then pulse-rate SFLOAT.
 _SPO2_OFFSET = 1
@@ -79,6 +121,33 @@ def parse_plx_flags(byte: int) -> PlxFlags:
         device_sensor_status_present=bool(byte & _FLAG_DEVICE_SENSOR_STATUS_PRESENT),
         pulse_amplitude_index_present=bool(byte & _FLAG_PULSE_AMPLITUDE_INDEX_PRESENT),
     )
+
+
+def _measurement_status_offset(flags: PlxFlags) -> int:
+    """Return the offset of the Measurement Status field, after the SpO2-PR pairs."""
+    offset = _MANDATORY_LENGTH
+    if flags.spo2pr_fast_present:
+        offset += _SPO2PR_PAIR_SIZE
+    if flags.spo2pr_slow_present:
+        offset += _SPO2PR_PAIR_SIZE
+    return offset
+
+
+def _device_issues(data: bytes, flags: PlxFlags) -> frozenset[DeviceIssue]:
+    """Return the issues the two status fields report; empty when neither is present.
+
+    The caller must have checked ``required_length`` first.
+    """
+    issues: set[DeviceIssue] = set()
+    offset = _measurement_status_offset(flags)
+    if flags.measurement_status_present:
+        status = int.from_bytes(data[offset : offset + _MEASUREMENT_STATUS_SIZE], "little")
+        issues.update(issue for bit, issue in _MEASUREMENT_STATUS_ISSUES if status & bit)
+        offset += _MEASUREMENT_STATUS_SIZE
+    if flags.device_sensor_status_present:
+        status = int.from_bytes(data[offset : offset + _DEVICE_SENSOR_STATUS_SIZE], "little")
+        issues.update(issue for bit, issue in _DEVICE_SENSOR_STATUS_ISSUES if status & bit)
+    return frozenset(issues)
 
 
 def required_length(flags: PlxFlags) -> int:
@@ -154,4 +223,5 @@ class PlxContinuousMeasurementParser(GattCharacteristicParser):
             effective=self._now(),
             device_id=self._device_id,
             value=spo2,
+            device_issues=_device_issues(data, flags),
         )

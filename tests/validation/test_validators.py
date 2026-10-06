@@ -12,11 +12,12 @@ from hypothesis import strategies as st
 
 from vitals_on_fhir.validation.base import ValidationResult, Validator, ValidatorChain
 from vitals_on_fhir.validation.builtin.validators import (
+    DeviceStatusValidator,
     DeviceUserValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
 )
-from vitals_on_fhir.vitals.base import DeviceUserMatch, ScalarVital, VitalSign
+from vitals_on_fhir.vitals.base import DeviceIssue, DeviceUserMatch, ScalarVital, VitalSign
 from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
 
@@ -377,3 +378,29 @@ def test_device_user_validator_ignores_vitals_without_the_field() -> None:
     """A vital that has no ``device_user`` field (e.g. heart rate) is accepted."""
     reading = HeartRate(effective=datetime(2026, 10, 6, tzinfo=UTC), device_id="hr", value=72.0)
     assert DeviceUserValidator().check(reading).accepted is True
+
+
+def _reading_with(issues: frozenset[DeviceIssue]) -> HeartRate:
+    return HeartRate(
+        effective=datetime(2026, 10, 6, tzinfo=UTC),
+        device_id="dev",
+        value=137.25,
+        device_issues=issues,
+    )
+
+
+def test_device_status_validator_accepts_no_issues() -> None:
+    """No reported issue (or no status from the device) is accepted."""
+    assert DeviceStatusValidator().check(_reading_with(frozenset())).accepted is True
+
+
+@given(issues=st.frozensets(st.sampled_from(list(DeviceIssue)), min_size=1))
+def test_device_status_validator_rejects_any_issue(issues: frozenset[DeviceIssue]) -> None:
+    """Any reported issue rejects; the reason names every issue and never the value."""
+    result = DeviceStatusValidator().check(_reading_with(issues))
+    assert result.accepted is False
+    assert result.validator_name == "device_status"
+    assert result.reason is not None
+    for issue in issues:
+        assert issue.value in result.reason
+    assert "137" not in result.reason

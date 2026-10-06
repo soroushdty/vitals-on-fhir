@@ -117,6 +117,38 @@ class SensorContactValidator(Validator):
         return ValidationResult(accepted=True, validator_name=self.name)
 
 
+class DeviceStatusValidator(Validator):
+    """Rejects readings the device itself reports as untrustworthy or not final.
+
+    Parsers translate a device's status bits into ``device_issues`` (e.g. cuff too
+    loose, questionable measurement, sensor displaced). Any issue rejects the
+    reading (ADR-0005). An empty set, including a device that reports no status,
+    is accepted.
+    """
+
+    name: ClassVar[str] = "device_status"
+
+    def check(self, vital: VitalSign) -> ValidationResult:
+        """Reject when ``vital.device_issues`` is not empty.
+
+        The reason names the issues, never the measurement value.
+
+        Args:
+            vital: The vital sign to evaluate.
+
+        Returns:
+            :class:`~vitals_on_fhir.validation.base.ValidationResult`
+        """
+        if vital.device_issues:
+            names = sorted(issue.value for issue in vital.device_issues)
+            return ValidationResult(
+                accepted=False,
+                validator_name=self.name,
+                reason=f"device reported: {', '.join(names)}",
+            )
+        return ValidationResult(accepted=True, validator_name=self.name)
+
+
 class DeviceUserValidator(Validator):
     """Rejects readings that a multi-user device did not attribute to the configured user.
 

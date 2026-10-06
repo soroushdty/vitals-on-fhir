@@ -40,9 +40,11 @@ definition:
 - **Bit 1 — Timestamp present**: when set, a 7-byte org.bluetooth date-time field
   follows the three SFLOATs. The parser uses it as the reading's measurement
   (`effective`) time, enabling store-and-forward.
-- **Bit 2 — Pulse Rate present**, **Bit 4 — Measurement Status present**: these
-  optional fields are accounted for when computing the minimum payload length, but
-  are not used by this parser.
+- **Bit 2 — Pulse Rate present**: accounted for when computing the minimum payload
+  length and the offsets of the fields after it, but not used by this parser.
+- **Bit 4 — Measurement Status present**: a 2-byte bitfield after the user ID.
+  The bits saying the reading cannot be trusted become `device_issues`, and
+  `DeviceStatusValidator` rejects the reading (ADR-0005). See the table below.
 - **Bit 3 — User ID present**: a multi-user cuff sends a 1-byte user ID after the
   timestamp and pulse rate (`0xFF` means "unknown user"). The parser decodes it
   **only to compare** with `VOF_DEVICE_USER_ID` and keeps the outcome
@@ -59,6 +61,22 @@ Payloads too short for the fields their flags byte declares, carrying a reserved
 or unusable SFLOAT for the systolic or diastolic value, or carrying an invalid
 calendar date-time when the timestamp flag is set, are rejected (`parse` returns
 `None`) so the adapter drops them without yielding a reading.
+
+## Measurement Status bits
+
+Source: GATT Specification Supplement, version date 2026-09-09, §3.34.3,
+Table 3.55 "Measurement Status field".
+
+| Bit | GSS definition (value 1) | Handling |
+|-----|--------------------------|----------|
+| 0 | Body movement detected during measurement | Rejected (`body movement`) |
+| 1 | Cuff too loose | Rejected (`cuff too loose`) |
+| 2 | Irregular pulse detected | **Accepted.** A clinical finding (possible arrhythmia), not a fault in the reading; rejecting it would drop every reading from a person with AF |
+| 3–4 | Pulse rate exceeds upper limit (`0b01`) / less than lower limit (`0b10`) | Accepted; concerns pulse rate, which this parser does not record |
+| 5 | Improper measurement position | Rejected (`improper measurement position`) |
+| 6–15 | Reserved for Future Use | Ignored |
+
+An absent Measurement Status field means no issues, as before.
 
 ## Timezone assumption
 
