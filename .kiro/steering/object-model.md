@@ -32,6 +32,9 @@ class VitalSign(ABC):
     # Required class metadata (enforced in __init_subclass__ for concrete subclasses)
     loinc_code: ClassVar[str]
     us_core_profile: ClassVar[str]
+
+    # Optional: further LOINC codes the profile requires (e.g. ("2708-6",) for SpO2)
+    additional_loinc_codes: ClassVar[tuple[str, ...]] = ()
 ```
 
 Rules:
@@ -192,7 +195,7 @@ class VitalMapper(ABC):
 
 ### `ScalarVitalMapper` (concrete)
 
-Builds an Observation entirely from `ScalarVital` class metadata (`loinc_code`, `ucum_unit`, `us_core_profile`). A new scalar vital sign needs no mapper code.
+Builds an Observation entirely from `ScalarVital` class metadata (`loinc_code`, `additional_loinc_codes`, `ucum_unit`, `us_core_profile`). A new scalar vital sign needs no mapper code.
 
 ### `ComponentVitalMapper` (concrete, roadmap-ready stub)
 

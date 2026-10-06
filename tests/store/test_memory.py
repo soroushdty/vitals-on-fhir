@@ -22,6 +22,7 @@ from hypothesis import strategies as st
 from vitals_on_fhir.fhir.mappers import ScalarVitalMapper
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
+from vitals_on_fhir.vitals.builtin.oxygen_saturation import OxygenSaturation
 
 _PATIENT_REF = "Patient/local-patient"
 _DEVICE_REF = "Device/mock-hr"
@@ -304,5 +305,27 @@ def test_clear_removes_everything() -> None:
         assert await store.search() == []
         await store.add(_make_observation(value=80.0, seconds=9))  # type: ignore[arg-type]
         assert len(await store.search()) == 1
+
+    asyncio.run(scenario())
+
+
+def test_search_by_code_matches_any_coding() -> None:
+    """A code search matches every coding, not just the first (FHIR token search).
+
+    An SpO2 Observation carries ``59408-5`` and ``2708-6``; searching by either
+    finds it, and a heart-rate code does not.
+    """
+
+    async def scenario() -> None:
+        store = InMemoryObservationStore(10)
+        reading = OxygenSaturation(effective=_EPOCH, device_id="mock-spo2", value=97.0)
+        observation = ScalarVitalMapper().to_observation(
+            reading, patient_ref=_PATIENT_REF, device_ref=_DEVICE_REF, issued=_EPOCH
+        )
+        await store.add(observation)
+
+        assert len(await store.search(code="59408-5")) == 1
+        assert len(await store.search(code="2708-6")) == 1
+        assert await store.search(code="8867-4") == []
 
     asyncio.run(scenario())

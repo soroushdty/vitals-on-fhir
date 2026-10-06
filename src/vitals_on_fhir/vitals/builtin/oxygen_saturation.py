@@ -14,13 +14,16 @@ class OxygenSaturation(ScalarVital):
     """A single peripheral oxygen-saturation (SpO2) measurement as a percentage.
 
     Maps to LOINC ``59408-5`` ("Oxygen saturation in Arterial blood by Pulse
-    oximetry") and conforms to the US Core Pulse Oximetry profile. A
+    oximetry") and conforms to the US Core Pulse Oximetry profile, which also
+    requires LOINC ``2708-6`` ("Oxygen saturation in Arterial blood") in the same
+    ``code`` (as does the base FHIR ``oxygensat`` profile). A
     standard-profile home pulse oximeter reports only the SpO2 percentage over
     the Bluetooth PLX profile, so this is a scalar vital with a single ``value``
     and no sensor-contact concept.
     """
 
     loinc_code: ClassVar[str] = "59408-5"
+    additional_loinc_codes: ClassVar[tuple[str, ...]] = ("2708-6",)
     ucum_unit: ClassVar[str] = "%"
     us_core_profile: ClassVar[str] = (
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-pulse-oximetry"
