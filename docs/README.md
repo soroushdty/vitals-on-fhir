@@ -21,6 +21,7 @@ Protocol knowledge must be cited here, not only in code comments.
 - [ADR-0002](adr-0002-mark-patient-generated-and-simulated-observations.md) — mark Observations as patient-generated (`performer`, PHD category) and simulated data as test data (`HTEST`).
 - [ADR-0004](adr-0004-attribute-multi-user-device-readings.md) — record only the configured user's readings from multi-user cuffs and scales (`VOF_DEVICE_USER_ID`); the device user ID is compared, never kept.
 - [ADR-0005](adr-0005-honour-device-reported-measurement-status.md) — reject BP and SpO2 readings the device reports as untrustworthy or not final (`device_issues`); irregular pulse is accepted.
+- [ADR-0006](adr-0006-temperature-measurement-site.md) — carry the thermometer's reported measurement site into `Observation.bodySite` as a SNOMED CT concept; omit it when no specific site is known.
 
 ## Protocol source citations
 

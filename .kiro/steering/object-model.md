@@ -28,6 +28,7 @@ VitalSign (ABC, frozen dataclass)
 class VitalSign(ABC):
     effective: datetime  # timezone-aware; when the measurement was taken
     device_id: str
+    body_site: BodySite | None = None  # SNOMED CT site the device reported (ADR-0006)
     device_issues: frozenset[DeviceIssue] = frozenset()  # problems the device reported (ADR-0005)
 
     # Required class metadata (enforced in __init_subclass__ for concrete subclasses)

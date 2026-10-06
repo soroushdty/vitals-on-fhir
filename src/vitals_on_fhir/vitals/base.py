@@ -57,6 +57,35 @@ class DeviceIssue(enum.Enum):
     SENSOR_DISCONNECTED = "sensor disconnected"
 
 
+class BodySite(enum.Enum):
+    """Where on the body a measurement was taken, as a SNOMED CT body-structure concept.
+
+    Like the LOINC codes on vital classes, SNOMED CT is a standard vocabulary, not
+    FHIR, so it lives here and any mapper can use it (ADR-0006). Each value is
+    ``(code, display)``; the codes and their sources are recorded in
+    ``docs/protocol-body-temperature-measurement.md``.
+    """
+
+    ARMPIT = ("91470000", "Axillary region structure")
+    EARLOBE = ("48800003", "Ear lobule structure")
+    FINGER = ("7569003", "Finger structure")
+    GASTROINTESTINAL_TRACT = ("122865005", "Gastrointestinal tract structure")
+    MOUTH = ("74262004", "Oral cavity structure")
+    RECTUM = ("34402009", "Rectum structure")
+    TOE = ("29707007", "Toe structure")
+    TYMPANUM = ("42859004", "Tympanic membrane structure")
+
+    @property
+    def snomed_code(self) -> str:
+        """The SNOMED CT concept ID."""
+        return self.value[0]
+
+    @property
+    def snomed_display(self) -> str:
+        """The SNOMED CT preferred term."""
+        return self.value[1]
+
+
 @dataclass(frozen=True, kw_only=True)
 class VitalSign(abc.ABC):
     """Abstract base for all vital-sign domain objects.
@@ -71,6 +100,9 @@ class VitalSign(abc.ABC):
 
     device_id: str
     """Identifier linking this reading to a Device resource."""
+
+    body_site: BodySite | None = None
+    """Where the measurement was taken, when the device reports a specific site."""
 
     device_issues: frozenset[DeviceIssue] = frozenset()
     """Problems the device reported about this reading; empty when none (or not reported).

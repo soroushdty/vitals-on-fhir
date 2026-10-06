@@ -49,9 +49,11 @@ Supplement and the IEEE-11073 FLOAT definition:
   (`effective`) time, enabling store-and-forward. When absent, the parser stamps
   the reading with the processing time (an injectable, timezone-aware local
   clock).
-- **Bit 2 — Temperature Type present**: when set, a 1-byte temperature-type field
-  (measurement site) follows. It is accounted for when computing the minimum
-  payload length, but is not decoded into the reading.
+- **Bit 2 — Temperature Type present**: when set, a 1-byte Temperature Type field
+  (where on the body the temperature was taken) follows the timestamp, or the
+  FLOAT when there is no timestamp. The parser decodes it into the reading's
+  `body_site`, which the mapper writes to `Observation.bodySite` (see
+  [Measurement site](#measurement-site-temperature-type) below).
 - **FLOAT value**: the temperature is a 32-bit FLOAT (an 8-bit signed exponent and
   a 24-bit signed mantissa). Reserved mantissa values (NaN, NRes, ±INFINITY, and
   the reserved value) do not represent a usable number and cause the value to be
@@ -61,6 +63,48 @@ Payloads too short for the fields their flags byte declares, carrying a reserved
 or unusable FLOAT temperature value, or carrying an invalid calendar date-time
 when the timestamp flag is set, are rejected (`parse` returns `None`) so the
 adapter drops them without yielding a reading.
+
+## Measurement site (Temperature Type)
+
+Readings taken at different sites are not directly comparable, so the site is
+carried into FHIR as `Observation.bodySite` (#11, ADR-0006).
+
+**Values.** GATT Specification Supplement, version date 2026-09-09, §3.242.1,
+Table 3.370 "Temperature Type Description field" (the Temperature Measurement
+field "is the same as the format of the Temperature Type characteristic",
+§3.239). The values correspond to the Temperature Type descriptions in
+IEEE 11073-10408-2008.
+
+**Codes.** Each site with a specific location maps to one SNOMED CT body-structure
+concept. All were checked on 2026-10-06 against SNOMED CT International Edition
+2025-02-01 on `tx.fhir.org` (`CodeSystem/$lookup`: active, display is the
+preferred term). The HL7 FHIR validator 6.10.4 (US Core 9.0.0, Body Temperature
+profile) then reported no errors for an Observation with each code.
+
+| GSS value | GSS definition | SNOMED CT code | SNOMED CT display | Notes |
+|-----------|----------------|----------------|-------------------|-------|
+| 0 | Reserved for Future Use | — | — | No `bodySite` |
+| 1 | Armpit | `91470000` | Axillary region structure | |
+| 2 | Body (general) | — | — | No `bodySite`: no specific site, so nothing to guess |
+| 3 | Ear (usually earlobe) | `48800003` | Ear lobule structure | Follows the GSS's "usually earlobe" |
+| 4 | Finger | `7569003` | Finger structure | |
+| 5 | Gastrointestinal Tract | `122865005` | Gastrointestinal tract structure | |
+| 6 | Mouth | `74262004` | Oral cavity structure | Oral readings are taken inside the mouth, so the oral cavity rather than "Mouth region structure" (`123851003`) |
+| 7 | Rectum | `34402009` | Rectum structure | |
+| 8 | Toe | `29707007` | Toe structure | |
+| 9 | Tympanum (ear drum) | `42859004` | Tympanic membrane structure | |
+| 10–255 | Reserved for Future Use | — | — | No `bodySite` |
+
+An absent Temperature Type field also gives no `bodySite`.
+
+**The static Temperature Type characteristic (not read yet).** HTS 1.0 §3.2: "There
+are two exclusive methods to enable a Thermometer to provide temperature type
+information to a Collector. Either one method or the other is used, but not
+both." A thermometer whose site cannot change exposes the separate Temperature
+Type characteristic (`0x2A1D`) and leaves the field out of each measurement
+(§3.1.1.4). The adapter does not read that characteristic yet, so readings from
+such thermometers carry no `bodySite`. Reading it once after connecting would
+need a `BleConnection` change, which is left for a follow-up.
 
 ## Fahrenheit → Celsius normalization
 

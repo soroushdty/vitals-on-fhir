@@ -2,6 +2,7 @@
 """Public API for the ``vitals`` package — domain model for vital signs."""
 
 from vitals_on_fhir.vitals.base import (
+    BodySite,
     ComponentSpec,
     ComponentVital,
     DeviceInfo,
@@ -27,6 +28,7 @@ __all__ = [
     "OxygenSaturation",
     "BodyTemperature",
     "BodyWeight",
+    "BodySite",
     "DeviceInfo",
     "DeviceIssue",
     "DeviceUserMatch",
