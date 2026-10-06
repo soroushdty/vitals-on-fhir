@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # Device
     adapter: str = "mock"
     device_name: str | None = None
+    # The user to record on a multi-user cuff or scale (ADR-0004). 0xFF means
+    # "unknown user" in the Bluetooth specs, so it cannot be chosen.
+    device_user_id: int | None = Field(default=None, ge=0, le=254)
 
     # Mock heart-rate adapter: seconds between simulated readings.  The rhythm
     # itself is chosen from the dashboard, not configured.
@@ -138,6 +141,12 @@ class Settings(BaseSettings):
     def _empty_is_unset(cls, value: str | None) -> str | None:
         """Treat an empty value (``VOF_API_TOKEN=``, ``VOF_DEVICE_NAME=``) as unset."""
         return value or None
+
+    @field_validator("device_user_id", mode="before")
+    @classmethod
+    def _empty_user_id_is_unset(cls, value: object) -> object:
+        """Treat an empty ``VOF_DEVICE_USER_ID=`` as unset."""
+        return None if value == "" else value
 
     @field_validator("timezone")
     @classmethod

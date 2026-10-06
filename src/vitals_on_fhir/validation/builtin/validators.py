@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Concrete validator implementations shipped with the package.
 
-All three validators depend only on the Python standard library,
+All validators depend only on the Python standard library,
 ``vitals_on_fhir.vitals``, and ``vitals_on_fhir.validation.base``.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from vitals_on_fhir.validation.base import ValidationResult, Validator
-from vitals_on_fhir.vitals.base import ComponentVital, ScalarVital, VitalSign
+from vitals_on_fhir.vitals.base import ComponentVital, DeviceUserMatch, ScalarVital, VitalSign
 
 
 class PlausibleRangeValidator(Validator):
@@ -113,6 +113,45 @@ class SensorContactValidator(Validator):
                 accepted=False,
                 validator_name=self.name,
                 reason="sensor contact not detected",
+            )
+        return ValidationResult(accepted=True, validator_name=self.name)
+
+
+class DeviceUserValidator(Validator):
+    """Rejects readings that a multi-user device did not attribute to the configured user.
+
+    A shared cuff or scale tags each reading with a user ID, which the parser
+    compares with ``VOF_DEVICE_USER_ID`` (``device_user``). Readings from another
+    user, from the "unknown user", or from a multi-user device when no user is
+    configured are rejected so they cannot be filed under the wrong Patient
+    (ADR-0004). ``None`` (the device reports no user ID) is accepted.
+    """
+
+    name: ClassVar[str] = "device_user"
+
+    def check(self, vital: VitalSign) -> ValidationResult:
+        """Accept only a matching or unreported device user.
+
+        The rejection reason never names the user ID or the measurement value.
+
+        Args:
+            vital: The vital sign to evaluate.
+
+        Returns:
+            :class:`~vitals_on_fhir.validation.base.ValidationResult`
+        """
+        device_user = getattr(vital, "device_user", None)
+        if device_user is DeviceUserMatch.MISMATCH:
+            return ValidationResult(
+                accepted=False,
+                validator_name=self.name,
+                reason="reading belongs to another device user",
+            )
+        if device_user is DeviceUserMatch.NOT_CONFIGURED:
+            return ValidationResult(
+                accepted=False,
+                validator_name=self.name,
+                reason="multi-user device; set VOF_DEVICE_USER_ID to the user to record",
             )
         return ValidationResult(accepted=True, validator_name=self.name)
 

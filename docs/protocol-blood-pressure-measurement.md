@@ -40,9 +40,15 @@ definition:
 - **Bit 1 — Timestamp present**: when set, a 7-byte org.bluetooth date-time field
   follows the three SFLOATs. The parser uses it as the reading's measurement
   (`effective`) time, enabling store-and-forward.
-- **Bit 2 — Pulse Rate present**, **Bit 3 — User ID present**, **Bit 4 —
-  Measurement Status present**: these optional fields are accounted for when
-  computing the minimum payload length, but are not used by this parser.
+- **Bit 2 — Pulse Rate present**, **Bit 4 — Measurement Status present**: these
+  optional fields are accounted for when computing the minimum payload length, but
+  are not used by this parser.
+- **Bit 3 — User ID present**: a multi-user cuff sends a 1-byte user ID after the
+  timestamp and pulse rate (`0xFF` means "unknown user"). The parser decodes it
+  **only to compare** with `VOF_DEVICE_USER_ID` and keeps the outcome
+  (`device_user`), never the ID. `DeviceUserValidator` rejects readings from other
+  users, and every reading from a multi-user cuff when the setting is unset. The ID
+  is never logged, stored, or put into FHIR (ADR-0004).
 - **SFLOAT values**: each of systolic, diastolic, and MAP is a 16-bit SFLOAT (a
   4-bit signed exponent and a 12-bit signed mantissa). Reserved mantissa values
   (NaN, NRes, ±INFINITY, and the reserved value) do not represent a usable number.

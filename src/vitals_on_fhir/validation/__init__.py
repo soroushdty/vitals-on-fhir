@@ -8,6 +8,7 @@ from vitals_on_fhir.validation.base import (
 )
 from vitals_on_fhir.validation.builtin.validators import (
     ComponentRangeValidator,
+    DeviceUserValidator,
     DuplicateValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
@@ -23,4 +24,5 @@ __all__ = [
     "SensorContactValidator",
     "DuplicateValidator",
     "ComponentRangeValidator",
+    "DeviceUserValidator",
 ]

@@ -82,6 +82,7 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `mock-bp`, `mock-spo2`, `mock-temp`, `mock-weight` (simulated); `miband10`, `bp`, `spo2`, `temp`, `weight`, or a fully qualified class path (`package.module.ClassName`) (real devices) |
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
+| `VOF_DEVICE_USER_ID` | *(none)* | Multi-user BP cuff or scale: the device user (0–254) whose readings are recorded. Other users' readings are rejected, and so is every reading from a multi-user device while this is unset (ADR-0004). Single-user devices ignore it |
 | `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |

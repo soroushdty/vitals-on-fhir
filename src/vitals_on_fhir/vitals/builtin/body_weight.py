@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from vitals_on_fhir.vitals.base import ScalarVital
+from vitals_on_fhir.vitals.base import DeviceUserMatch, ScalarVital
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,3 +32,10 @@ class BodyWeight(ScalarVital):
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-weight"
     )
     plausible_range: ClassVar[tuple[float, float]] = (2.0, 650.0)
+
+    device_user: DeviceUserMatch | None = None
+    """Whether the device-assigned user ID matches ``VOF_DEVICE_USER_ID``.
+
+    ``None`` means the device reports no user ID (a single-user device). The ID
+    itself is never kept; see :class:`~vitals_on_fhir.vitals.DeviceUserMatch`.
+    """

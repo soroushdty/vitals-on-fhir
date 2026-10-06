@@ -173,6 +173,7 @@ Runs validators in registration order. Returns the first rejection. If all pass,
 |-------|-------------|
 | `PlausibleRangeValidator` | `value` outside `vital_class.plausible_range`; range overridable from config (`VOF_HR_MIN`, `VOF_HR_MAX`) |
 | `SensorContactValidator` | `sensor_contact is False` (passes when `None`, i.e. sensor contact not reported) |
+| `DeviceUserValidator` | `device_user` is `MISMATCH` or `NOT_CONFIGURED` (passes when `MATCH` or `None`, i.e. the device reports no user ID; ADR-0004) |
 | `DuplicateValidator` | same `(device_id, effective, value)` seen already in this session |
 
 ---
