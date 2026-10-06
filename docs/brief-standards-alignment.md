@@ -64,8 +64,10 @@ sources, not this brief, in any preprint text that builds on it.
 ### Upstream observation
 
 In the reviewed build of [3], the *PHR Code Mapping* table leaves the LOINC cell empty for the
-`bloodPressure` panel and `oxygenSaturation` rows. This repository uses 85354-9 and 59408-5, which the
-US Core profiles require. The table appears incomplete, and our codes are not wrong. If a later build
+`bloodPressure` panel and `oxygenSaturation` rows. This repository uses 85354-9 for blood pressure,
+and both 59408-5 and 2708-6 for oxygen saturation, as the US Core profiles require (the base FHIR
+`oxygensat` profile requires 2708-6 too; #17). The table appears incomplete, and our codes are not
+wrong. If a later build
 still has the gap, report it through the IG's "Propose a change" link. The same table maps HealthKit
 and Health Connect identifiers to LOINC, which is directly useful for roadmap phase 3.
 

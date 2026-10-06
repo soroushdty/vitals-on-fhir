@@ -229,6 +229,8 @@ def test_mapper_produces_valid_us_core_observation(
     # LOINC 8867-4 heart-rate code.
     assert observation.code.coding[0].code == HeartRate.loinc_code
     assert observation.code.coding[0].code == "8867-4"
+    # No additional_loinc_codes, so exactly one coding.
+    assert len(observation.code.coding) == 1
 
     # Vital-signs category.
     assert observation.category[0].coding[0].code == "vital-signs"
@@ -313,7 +315,7 @@ def test_mapper_produces_valid_pulse_oximetry_observation(
     For any plausible SpO2 reading, the mapper returns a ``fhir.resources``
     Observation that constructs without a validation error and carries the
     fields required by the US Core Pulse Oximetry profile: ``status == "final"``,
-    LOINC ``59408-5``, the ``vital-signs`` category, the US Core Pulse Oximetry
+    LOINC ``59408-5`` and ``2708-6``, the ``vital-signs`` category, the US Core Pulse Oximetry
     profile URL in ``meta.profile``, both timestamps present, and a
     ``valueQuantity`` whose UCUM ``code`` and ``unit`` display are ``%``.
 
@@ -336,9 +338,13 @@ def test_mapper_produces_valid_pulse_oximetry_observation(
     assert observation.get_resource_type() == "Observation"
     assert observation.status == "final"
 
-    # LOINC 59408-5 pulse-oximetry code.
+    # LOINC 59408-5 first, then 2708-6, which US Core Pulse Oximetry and the base
+    # FHIR oxygensat profile both require (issue #17).
     assert observation.code.coding[0].code == OxygenSaturation.loinc_code
-    assert observation.code.coding[0].code == "59408-5"
+    assert [(c.system, c.code) for c in observation.code.coding] == [
+        ("http://loinc.org", "59408-5"),
+        ("http://loinc.org", "2708-6"),
+    ]
 
     # Vital-signs category.
     assert observation.category[0].coding[0].code == "vital-signs"

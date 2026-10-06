@@ -34,6 +34,14 @@ class VitalSign(abc.ABC):
     us_core_profile: ClassVar[str]
     """Canonical URL of the US Core profile this vital sign conforms to."""
 
+    additional_loinc_codes: ClassVar[tuple[str, ...]] = ()
+    """Further LOINC codes the profile requires next to ``loinc_code``.
+
+    Empty for most vitals. US Core Pulse Oximetry, for example, requires ``"2708-6"``
+    alongside ``"59408-5"``. Mappers emit these codings after ``loinc_code``, which
+    stays the first coding.
+    """
+
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         # Only enforce the ClassVar contract on classes that actually assign a value

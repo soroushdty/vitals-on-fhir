@@ -64,6 +64,7 @@ The following fields are required on every Observation produced by this project.
 ```
 
 Rules:
+- `code.coding` holds `loinc_code` first, then one LOINC coding per `additional_loinc_codes` (e.g. `2708-6` after `59408-5` for SpO2).
 - `status` is always `"final"` for MVP measurements.
 - `effectiveDateTime` comes from `vital.effective` (timezone-aware; convert to UTC ISO 8601).
 - `issued` is set by the mapper at processing time, not by the adapter. Always set both fields.
@@ -81,6 +82,7 @@ Rules:
 | `meta.profile` | `vital_class.us_core_profile` |
 | `code.coding[0].code` | `vital_class.loinc_code` |
 | `code.coding[0].system` | hardcoded `"http://loinc.org"` |
+| `code.coding[1..]` | `vital_class.additional_loinc_codes`, same system |
 | `valueQuantity.code` | `vital_class.ucum_unit` |
 | `valueQuantity.system` | hardcoded `"http://unitsofmeasure.org"` |
 | `category` | hardcoded vital-signs coding, then the PHD `phd` coding |
@@ -147,7 +149,7 @@ Construct resources using `fhir.resources` model classes. Pydantic validation ru
 
 Follow this decision process when adding a new vital-sign class:
 
-1. **LOINC code**: use the LOINC term for the specific measurement panel (e.g. `59408-5` for SpO2). Check [loinc.org](https://loinc.org) for the current preferred term. Cite the LOINC release version in `docs/`.
+1. **LOINC code**: use the LOINC term for the specific measurement panel (e.g. `59408-5` for SpO2). Check [loinc.org](https://loinc.org) for the current preferred term. Cite the LOINC release version in `docs/`. A profile may require more than one code: US Core Pulse Oximetry, and the base FHIR `oxygensat` profile, also require `2708-6`. Read the profile's `code.coding` slices and put any further required codes in `additional_loinc_codes`, then confirm with the HL7 FHIR validator (#17).
 2. **UCUM unit**: use the UCUM code, not the display string (e.g. `/min`, `%`, `Cel`, `kg`). Verify at [ucum.org](https://ucum.org). The `valueQuantity.unit` display string may be human-friendly, but `valueQuantity.code` must be the UCUM code.
 3. **US Core profile URL**: find the profile in the [US Core Implementation Guide](https://www.hl7.org/fhir/us/core/). Use the canonical URL exactly as published. If no US Core profile exists for the measurement, use the base FHIR vital-signs profile (`http://hl7.org/fhir/StructureDefinition/vitalsigns`) as a fallback and document the decision in `docs/`.
 4. Record sources in `docs/` before adding the code to the class.

@@ -5,6 +5,20 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-06] — SpO2 Observations carry LOINC 2708-6
+
+US Core Pulse Oximetry and the base FHIR `oxygensat` profile require LOINC 2708-6 next to
+59408-5, so every SpO2 Observation failed validation. Both codes are now emitted, and the HL7
+FHIR validator reports no errors (issue #17).
+
+- Added: `VitalSign.additional_loinc_codes` (default `()`); `OxygenSaturation` sets `("2708-6",)`
+- Changed: `ScalarVitalMapper` and `ComponentVitalMapper` emit `loinc_code` first, then one
+  LOINC coding per additional code
+- Changed: `InMemoryObservationStore.search(code=...)` matches any coding, not only the first,
+  so `GET /fhir/Observation?code=2708-6` finds SpO2 readings
+- Changed: steering `fhir-conventions.md` ("Choosing codes": a profile may require more than one
+  code) and `object-model.md`; `docs/brief-standards-alignment.md`, `docs/fhir-api.md`
+
 ## [2026-10-05] — Mark patient-generated and simulated Observations
 
 Observations now say that the patient collected them with a personal health device, so a

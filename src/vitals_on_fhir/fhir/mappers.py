@@ -52,12 +52,29 @@ def _to_utc_isoformat(moment: datetime) -> str:
     return moment.astimezone(UTC).isoformat()
 
 
+def _loinc_codings(vital_class: type[VitalSign]) -> list[dict[str, str]]:
+    """Return the ``code.coding`` entries for *vital_class*.
+
+    ``loinc_code`` comes first, followed by any ``additional_loinc_codes`` the
+    profile requires (e.g. ``2708-6`` next to ``59408-5`` for pulse oximetry).
+
+    Args:
+        vital_class: A concrete vital-sign class.
+
+    Returns:
+        One LOINC coding per code, in declared order.
+    """
+    codes = (vital_class.loinc_code, *vital_class.additional_loinc_codes)
+    return [{"system": _LOINC_SYSTEM, "code": code} for code in codes]
+
+
 class ScalarVitalMapper(VitalMapper):
     """Maps a :class:`~vitals_on_fhir.vitals.ScalarVital` to a FHIR Observation.
 
     Builds the Observation entirely from the vital sign's class metadata
-    (``loinc_code``, ``ucum_unit``, ``us_core_profile``), so adding a new
-    scalar vital sign type requires no mapper code.  Every Observation is
+    (``loinc_code``, ``additional_loinc_codes``, ``ucum_unit``,
+    ``us_core_profile``), so adding a new scalar vital sign type requires no
+    mapper code.  Every Observation is
     marked as patient-generated: the PHD category next to vital-signs, and the
     Patient as ``performer`` (ADR-0002).
     """
@@ -115,14 +132,7 @@ class ScalarVitalMapper(VitalMapper):
                 },
                 PHD_CATEGORY,
             ],
-            "code": {
-                "coding": [
-                    {
-                        "system": _LOINC_SYSTEM,
-                        "code": vital_class.loinc_code,
-                    }
-                ]
-            },
+            "code": {"coding": _loinc_codings(vital_class)},
             "subject": {"reference": patient_ref},
             # The patient collected the reading themselves (ADR-0002).
             "performer": [{"reference": patient_ref}],
@@ -225,14 +235,7 @@ class ComponentVitalMapper(VitalMapper):
                 },
                 PHD_CATEGORY,
             ],
-            "code": {
-                "coding": [
-                    {
-                        "system": _LOINC_SYSTEM,
-                        "code": vital_class.loinc_code,
-                    }
-                ]
-            },
+            "code": {"coding": _loinc_codings(vital_class)},
             "subject": {"reference": patient_ref},
             # The patient collected the reading themselves (ADR-0002).
             "performer": [{"reference": patient_ref}],

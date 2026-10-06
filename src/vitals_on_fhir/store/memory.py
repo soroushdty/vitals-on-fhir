@@ -135,7 +135,7 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
     ) -> list[Observation]:
         """Search stored Observations with optional filters.
 
-        Filters by LOINC ``code`` (matched against ``code.coding[0].code``) and
+        Filters by LOINC ``code`` (matched against any ``code.coding`` entry) and
         by ``effectiveDateTime`` range (inclusive bounds), sorts by
         ``effectiveDateTime`` (newest first when ``sort_desc``), and truncates
         to ``count`` results.  Every returned Observation is a deep-copied
@@ -171,15 +171,12 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _loinc_code(observation: Observation) -> str | None:
-        """Return the first LOINC coding ``code`` of *observation*, if any."""
+    def _codes(observation: Observation) -> set[str]:
+        """Return every coding ``code`` in *observation*'s ``code`` (empty if none)."""
         observation_code = observation.code
-        if observation_code is None:
-            return None
-        coding = observation_code.coding
-        if not coding:
-            return None
-        return coding[0].code
+        if observation_code is None or not observation_code.coding:
+            return set()
+        return {coding.code for coding in observation_code.coding if coding.code}
 
     @staticmethod
     def _effective(observation: Observation) -> datetime | None:
@@ -209,7 +206,7 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
         date_to: datetime | None,
     ) -> bool:
         """Return ``True`` if *observation* passes the code and date filters."""
-        if code is not None and cls._loinc_code(observation) != code:
+        if code is not None and code not in cls._codes(observation):
             return False
 
         if date_from is not None or date_to is not None:
