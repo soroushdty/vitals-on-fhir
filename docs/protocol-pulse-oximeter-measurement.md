@@ -25,7 +25,7 @@ other projects or vendor SDKs.
 |---------------|-----------------|---------|-----------|
 | Pulse Oximeter Service (PLXS) | The Pulse Oximeter Service (`0x1822`) and its Continuous Measurement characteristic (`0x2A5F`) and Spot-Check Measurement characteristic (`0x2A5E`) | 1.0.1 (adopted 2019-12-17) | <https://www.bluetooth.com/specifications/specs/pulse-oximeter-service-1-0-1/> |
 | Pulse Oximeter Profile (PLXP) | The profile that uses the Pulse Oximeter Service, including the Collector/Sensor roles | 1.0.1 (adopted 2019-12-17) | <https://www.bluetooth.com/specifications/specs/pulse-oximeter-profile-1-0-1/> |
-| GATT Specification Supplement (GSS) | Field structure of the PLX Continuous Measurement characteristic: flags byte, the SpO2/pulse-rate SFLOAT pairs (normal, fast, slow), measurement status, device and sensor status, and pulse amplitude index | Current published revision | <https://www.bluetooth.com/specifications/specs/gatt-specification-supplement/> |
+| PLXS 1.0.1, §3.1.1.4–3.1.1.5 and §3.2.1.5–3.2.1.6 | The bit definitions of the Measurement Status (Table 3.4) and Device and Sensor Status (Table 3.5) fields, which the Continuous Measurement characteristic shares with Spot-Check. (The GATT Specification Supplement, version date 2026-09-09, does not define the PLX characteristics.) | 1.0.1 | <https://bluetooth.com/wp-content/uploads/Files/Specification/HTML/PLXS_v1.0.1/out/en/index-en.html> |
 | Assigned Numbers | UUID assignments for the Pulse Oximeter Service (`0x1822`) and the PLX Continuous Measurement characteristic (`0x2A5F`) | Current published revision | <https://www.bluetooth.com/specifications/assigned-numbers/> |
 | ISO/IEEE 11073-20601 | The 16-bit SFLOAT (short float) medical-device value encoding: 4-bit signed exponent and 12-bit signed mantissa, and the reserved special values (NaN, NRes, ±INFINITY) | Personal Health Data Exchange Protocol | <https://standards.ieee.org/ieee/11073-20601/5619/> |
 
@@ -41,8 +41,10 @@ fields:
 
 - **Bit 0 — SpO2PR-Fast present**: an extra SpO2/pulse-rate SFLOAT pair (4 bytes).
 - **Bit 1 — SpO2PR-Slow present**: an extra SpO2/pulse-rate SFLOAT pair (4 bytes).
-- **Bit 2 — Measurement Status present**: a 2-byte field.
-- **Bit 3 — Device and Sensor Status present**: a 3-byte field.
+- **Bit 2 — Measurement Status present**: a 2-byte bitfield after the SpO2-PR
+  pairs. Decoded; see the status tables below.
+- **Bit 3 — Device and Sensor Status present**: a 3-byte bitfield after
+  Measurement Status. Decoded; see the status tables below.
 - **Bit 4 — Pulse Amplitude Index present**: a 2-byte SFLOAT.
 - **SFLOAT values**: each SpO2 and pulse-rate value is a 16-bit SFLOAT (a 4-bit
   signed exponent and a 12-bit signed mantissa). Reserved mantissa values (NaN,
@@ -51,8 +53,8 @@ fields:
   implementation used by the blood-pressure parser.
 
 Only the mandatory normal-pair SpO2 value is used to construct the reading. The
-pulse-rate SFLOAT and every optional field are accounted for when computing the
-minimum payload length, but are not modelled — SpO2 is a dimensionless
+pulse-rate SFLOAT, the fast and slow pairs, and the pulse amplitude index are
+accounted for when computing the minimum payload length, but are not modelled — SpO2 is a dimensionless
 percentage in the PLX encoding, so the SFLOAT already yields the percentage
 value with no unit normalization. (Pulse rate may be added later, additively, as
 its own `ScalarVital` without changing this parser's output.)
@@ -60,6 +62,52 @@ its own `ScalarVital` without changing this parser's output.)
 Payloads too short for the fields their flags byte declares, or carrying a
 reserved or unusable SFLOAT for the SpO2 value, are rejected (`parse` returns
 `None`) so the adapter drops them without yielding a reading.
+
+## Status bits
+
+The bits saying a reading cannot be trusted or is not final become
+`device_issues`, and `DeviceStatusValidator` rejects the reading (ADR-0005).
+Questionable readings are rejected, not published with a lower status. An absent
+status field means no issues, as before.
+
+**Measurement Status** (PLXS 1.0.1 Table 3.4)
+
+| Bit | Definition | Handling |
+|-----|------------|----------|
+| 0–4 | Reserved for Future Use | Ignored |
+| 5 | Measurement Ongoing | Rejected (not final) |
+| 6 | Early Estimated Data | Rejected (not final) |
+| 7 | Validated Data | Accepted |
+| 8 | Fully Qualified Data | Accepted |
+| 9 | Data from Measurement Storage | Rejected: a continuous measurement has no timestamp, so a stored one would be stamped with the wrong time |
+| 10 | Data for Demonstration | Rejected (not a real measurement) |
+| 11 | Data for Testing | Rejected (not a real measurement) |
+| 12 | Calibration Ongoing | Rejected |
+| 13 | Measurement Unavailable | Rejected |
+| 14 | Questionable Measurement Detected | Rejected |
+| 15 | Invalid Measurement Detected | Rejected |
+
+**Device and Sensor Status** (PLXS 1.0.1 Table 3.5)
+
+| Bit | Definition | Handling |
+|-----|------------|----------|
+| 0 | Extended Display Update Ongoing | Accepted (says nothing about the reading) |
+| 1 | Equipment Malfunction Detected | Rejected |
+| 2 | Signal Processing Irregularity Detected | Rejected |
+| 3 | Inadequate Signal Detected | Rejected |
+| 4 | Poor Signal Detected | Rejected |
+| 5 | Low Perfusion Detected | Rejected |
+| 6 | Erratic Signal Detected | Rejected |
+| 7 | Non-Pulsatile Signal Detected | Rejected |
+| 8 | Questionable Pulse Detected | Rejected |
+| 9 | Signal Analysis Ongoing | Rejected (not final) |
+| 10 | Sensor Interference Detected | Rejected |
+| 11 | Sensor Unconnected to User | Rejected |
+| 12 | Unknown Sensor Connected | Rejected |
+| 13 | Sensor Displaced | Rejected |
+| 14 | Sensor Malfunctioning | Rejected |
+| 15 | Sensor Disconnected | Rejected |
+| 16–23 | Reserved for Future Use | Ignored |
 
 ## No timestamp — effective is processing time
 

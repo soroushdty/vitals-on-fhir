@@ -78,6 +78,7 @@ from vitals_on_fhir.pipeline import ObservationSink, Orchestrator
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.validation import (
     ComponentRangeValidator,
+    DeviceStatusValidator,
     DeviceUserValidator,
     DuplicateValidator,
     PlausibleRangeValidator,
@@ -356,6 +357,7 @@ def _build_orchestrator(
         [
             PlausibleRangeValidator(overrides=scalar_overrides),
             SensorContactValidator(),
+            DeviceStatusValidator(),
             DeviceUserValidator(),
             ComponentRangeValidator(bp_overrides),
             DuplicateValidator(),

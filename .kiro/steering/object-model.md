@@ -28,6 +28,7 @@ VitalSign (ABC, frozen dataclass)
 class VitalSign(ABC):
     effective: datetime  # timezone-aware; when the measurement was taken
     device_id: str
+    device_issues: frozenset[DeviceIssue] = frozenset()  # problems the device reported (ADR-0005)
 
     # Required class metadata (enforced in __init_subclass__ for concrete subclasses)
     loinc_code: ClassVar[str]
@@ -173,6 +174,7 @@ Runs validators in registration order. Returns the first rejection. If all pass,
 |-------|-------------|
 | `PlausibleRangeValidator` | `value` outside `vital_class.plausible_range`; range overridable from config (`VOF_HR_MIN`, `VOF_HR_MAX`) |
 | `SensorContactValidator` | `sensor_contact is False` (passes when `None`, i.e. sensor contact not reported) |
+| `DeviceStatusValidator` | `device_issues` is not empty (parsers set it from device status bits; ADR-0005) |
 | `DeviceUserValidator` | `device_user` is `MISMATCH` or `NOT_CONFIGURED` (passes when `MATCH` or `None`, i.e. the device reports no user ID; ADR-0004) |
 | `DuplicateValidator` | same `(device_id, effective, value)` seen already in this session |
 

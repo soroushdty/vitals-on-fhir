@@ -5,6 +5,22 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-06] — Honour device-reported measurement status
+
+Blood-pressure cuffs and pulse oximeters report whether a reading is trustworthy,
+but those status bits were ignored, so readings the device called invalid were
+published as `final`. Untrustworthy or not-final readings are now rejected;
+irregular pulse is accepted. The choices are in ADR-0005 (issue #7).
+
+- Added: `docs/adr-0005-honour-device-reported-measurement-status.md`
+- Added: `vitals.DeviceIssue`; `VitalSign.device_issues` (default empty)
+- Added: `validation.DeviceStatusValidator`, in the default validator chain
+- Changed: `BloodPressureMeasurementParser` decodes Measurement Status (GSS
+  Table 3.55); `PlxContinuousMeasurementParser` decodes Measurement Status and
+  Device and Sensor Status (PLXS 1.0.1 Tables 3.4 and 3.5)
+- Changed: both protocol docs list every status bit and its handling; the PLX doc
+  now cites PLXS rather than the GSS for these fields; steering `object-model.md`
+
 ## [2026-10-06] — Record only the configured user on shared devices
 
 Multi-user blood-pressure cuffs and weight scales tag each reading with a user ID,

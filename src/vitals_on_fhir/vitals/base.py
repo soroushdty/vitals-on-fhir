@@ -14,6 +14,49 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 
+class DeviceIssue(enum.Enum):
+    """A problem the device itself reports about a reading (ADR-0005).
+
+    Parsers translate a device's status bits into these members, keeping only the
+    bits that say the value cannot be trusted or is not final. The values are the
+    human-readable names used in rejection reasons. Bit sources are documented in
+    the ``docs/protocol-*.md`` files.
+    """
+
+    # Blood pressure (Measurement Status)
+    BODY_MOVEMENT = "body movement"
+    CUFF_TOO_LOOSE = "cuff too loose"
+    IMPROPER_POSITION = "improper measurement position"
+
+    # Pulse oximetry (Measurement Status)
+    MEASUREMENT_ONGOING = "measurement ongoing"
+    EARLY_ESTIMATE = "early estimated data"
+    DATA_FROM_STORAGE = "data from measurement storage"
+    DEMONSTRATION_DATA = "data for demonstration"
+    TEST_DATA = "data for testing"
+    CALIBRATION_ONGOING = "calibration ongoing"
+    MEASUREMENT_UNAVAILABLE = "measurement unavailable"
+    QUESTIONABLE_MEASUREMENT = "questionable measurement"
+    INVALID_MEASUREMENT = "invalid measurement"
+
+    # Pulse oximetry (Device and Sensor Status)
+    EQUIPMENT_MALFUNCTION = "equipment malfunction"
+    SIGNAL_PROCESSING_IRREGULARITY = "signal processing irregularity"
+    INADEQUATE_SIGNAL = "inadequate signal"
+    POOR_SIGNAL = "poor signal"
+    LOW_PERFUSION = "low perfusion"
+    ERRATIC_SIGNAL = "erratic signal"
+    NON_PULSATILE_SIGNAL = "non-pulsatile signal"
+    QUESTIONABLE_PULSE = "questionable pulse"
+    SIGNAL_ANALYSIS_ONGOING = "signal analysis ongoing"
+    SENSOR_INTERFERENCE = "sensor interference"
+    SENSOR_UNCONNECTED = "sensor unconnected to user"
+    UNKNOWN_SENSOR = "unknown sensor connected"
+    SENSOR_DISPLACED = "sensor displaced"
+    SENSOR_MALFUNCTIONING = "sensor malfunctioning"
+    SENSOR_DISCONNECTED = "sensor disconnected"
+
+
 @dataclass(frozen=True, kw_only=True)
 class VitalSign(abc.ABC):
     """Abstract base for all vital-sign domain objects.
@@ -28,6 +71,12 @@ class VitalSign(abc.ABC):
 
     device_id: str
     """Identifier linking this reading to a Device resource."""
+
+    device_issues: frozenset[DeviceIssue] = frozenset()
+    """Problems the device reported about this reading; empty when none (or not reported).
+
+    ``DeviceStatusValidator`` rejects a reading with any issue (ADR-0005).
+    """
 
     loinc_code: ClassVar[str]
     """LOINC code for the vital-sign concept (e.g. ``"8867-4"`` for heart rate)."""

@@ -17,6 +17,11 @@ Measurement characteristic (see ``docs/protocol-blood-pressure-measurement.md``)
 Systolic, diastolic, and mean-arterial-pressure are three consecutive SFLOATs;
 only systolic and diastolic are used (MAP is device-derived and not modelled).
 
+Measurement Status: the bits saying the reading cannot be trusted (body
+movement, cuff too loose, improper measurement position) become
+``device_issues`` on the reading. Irregular pulse and the pulse-rate range bits
+are not reasons to distrust the pressure values, so they are not kept (ADR-0005).
+
 User ID: a multi-user cuff tags each reading with a one-byte user ID. It is
 decoded only to compare with the configured ``VOF_DEVICE_USER_ID``; the reading
 keeps the outcome (``device_user``), never the ID, and the ID is never logged
@@ -36,7 +41,7 @@ from typing import NamedTuple
 from vitals_on_fhir.adapters.ble import GattCharacteristicParser
 from vitals_on_fhir.adapters.datetime_field import TIMESTAMP_SIZE, decode_timestamp
 from vitals_on_fhir.adapters.sfloat import SFLOAT_SIZE, decode_sfloat
-from vitals_on_fhir.vitals.base import DeviceUserMatch, VitalSign
+from vitals_on_fhir.vitals.base import DeviceIssue, DeviceUserMatch, VitalSign
 from vitals_on_fhir.vitals.builtin.blood_pressure import BloodPressure
 
 __all__ = [
@@ -60,6 +65,14 @@ _TIMESTAMP_SIZE = TIMESTAMP_SIZE  # bytes (shared org.bluetooth date-time size)
 _PULSE_RATE_SIZE = 2  # bytes
 _USER_ID_SIZE = 1  # bytes (decoded only to compare, never kept)
 _MEASUREMENT_STATUS_SIZE = 2  # bytes
+
+# Measurement Status bits that make a reading untrustworthy (GSS Table 3.55).
+# Bit 2 (irregular pulse) and bits 3-4 (pulse-rate range) are deliberately absent.
+_STATUS_ISSUES: tuple[tuple[int, DeviceIssue], ...] = (
+    (1 << 0, DeviceIssue.BODY_MOVEMENT),
+    (1 << 1, DeviceIssue.CUFF_TOO_LOOSE),
+    (1 << 5, DeviceIssue.IMPROPER_POSITION),
+)
 
 # Three SFLOATs (systolic, diastolic, MAP) follow the flags byte.
 _SYSTOLIC_OFFSET = 1
@@ -119,6 +132,14 @@ def _user_id_offset(flags: BpFlags) -> int:
         offset += _TIMESTAMP_SIZE
     if flags.pulse_rate_present:
         offset += _PULSE_RATE_SIZE
+    return offset
+
+
+def _measurement_status_offset(flags: BpFlags) -> int:
+    """Return the offset of the Measurement Status field, which follows the user ID."""
+    offset = _user_id_offset(flags)
+    if flags.user_id_present:
+        offset += _USER_ID_SIZE
     return offset
 
 
@@ -210,10 +231,17 @@ class BloodPressureMeasurementParser(GattCharacteristicParser):
                 data[_user_id_offset(flags)], self._device_user_id
             )
 
+        device_issues: frozenset[DeviceIssue] = frozenset()
+        if flags.measurement_status_present:
+            offset = _measurement_status_offset(flags)
+            status = int.from_bytes(data[offset : offset + _MEASUREMENT_STATUS_SIZE], "little")
+            device_issues = frozenset(issue for bit, issue in _STATUS_ISSUES if status & bit)
+
         return BloodPressure(
             effective=effective,
             device_id=self._device_id,
             systolic=systolic,
             diastolic=diastolic,
             device_user=device_user,
+            device_issues=device_issues,
         )

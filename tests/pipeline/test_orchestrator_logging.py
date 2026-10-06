@@ -28,11 +28,12 @@ from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.pipeline.orchestrator import Orchestrator
 from vitals_on_fhir.validation.base import ValidatorChain
 from vitals_on_fhir.validation.builtin.validators import (
+    DeviceStatusValidator,
     DuplicateValidator,
     PlausibleRangeValidator,
     SensorContactValidator,
 )
-from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
+from vitals_on_fhir.vitals.base import DeviceInfo, DeviceIssue, VitalSign
 from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
 
 if TYPE_CHECKING:
@@ -63,9 +64,16 @@ class _ValueEmittingAdapter(DeviceAdapter):
 
     supported_vitals: ClassVar[tuple[type[VitalSign], ...]] = (HeartRate,)
 
-    def __init__(self, value: float, *, sensor_contact: bool | None = True) -> None:
+    def __init__(
+        self,
+        value: float,
+        *,
+        sensor_contact: bool | None = True,
+        device_issues: frozenset[DeviceIssue] = frozenset(),
+    ) -> None:
         self._value = value
         self._sensor_contact = sensor_contact
+        self._device_issues = device_issues
         self._state = ConnectionState.DISCONNECTED
 
     @property
@@ -97,6 +105,7 @@ class _ValueEmittingAdapter(DeviceAdapter):
             device_id=_DEVICE_ID,
             value=self._value,
             sensor_contact=self._sensor_contact,
+            device_issues=self._device_issues,
         )
         self._state = ConnectionState.DISCONNECTED
 
@@ -107,6 +116,7 @@ def _fresh_chain() -> ValidatorChain:
         [
             PlausibleRangeValidator(),
             SensorContactValidator(),
+            DeviceStatusValidator(),
             DuplicateValidator(),
         ]
     )
@@ -239,6 +249,22 @@ def test_no_sensor_contact_reading_yields_no_publish(
     assert sink.published == []
     # 72.0 is the fixed valid value MockAdapter emits even in NO_SENSOR_CONTACT.
     _assert_value_absent_from_info_logs(caplog.records, 72.0)
+
+
+def test_device_flagged_reading_yields_no_publish(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reading the device flags is rejected with the issue named, never the value (ADR-0005)."""
+    caplog.clear()
+    adapter = _ValueEmittingAdapter(
+        137.25, device_issues=frozenset({DeviceIssue.QUESTIONABLE_MEASUREMENT})
+    )
+    with caplog.at_level(logging.INFO):
+        sink = _run_orchestrator(adapter)
+
+    assert sink.published == []
+    assert any("questionable measurement" in r.getMessage() for r in caplog.records)
+    _assert_value_absent_from_info_logs(caplog.records, 137.25)
 
 
 def test_accepted_reading_publishes_without_leaking_value(
