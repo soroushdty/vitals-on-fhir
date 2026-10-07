@@ -5,6 +5,29 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Find BLE devices reliably
+
+A Xiaomi Smart Band 10 that was broadcasting heart rate was never found, for three
+reasons: `VOF_DEVICE_NAME` had to equal the full advertised name; one empty scan
+stopped acquisition for the rest of the session; and a band left connected to the
+computer (paired, or kept by an earlier run) does not advertise, so no scan could
+see it. The service's own `INFO` logs were dropped as well, which hid all of this.
+
+- Changed: `VOF_DEVICE_NAME` matches any part of the advertised name, ignoring
+  case (`Smart Band 10` now selects `Xiaomi Smart Band 10 9940`). A value that was
+  the exact full name still works.
+- Changed: `BleConnection.connect()` keeps looking with capped backoff when no
+  device is found or the connection fails, logging the reason at `WARNING` (the
+  devices seen and whether the name filter excluded them). It no longer raises
+  for those cases; it still raises `RuntimeError` when `bleak` is unavailable.
+- Added: on Linux, a matching device that is already connected to the computer is
+  used when nothing matching is advertising (looked up in BlueZ over D-Bus).
+- Fixed: a link whose notification subscription fails is closed again instead of
+  being left open, where it kept the device from advertising.
+- Fixed: `cli.main()` sends the package's `INFO` logs (connection events,
+  rejected readings) to stderr.
+- Added: `adapters.ble.DeviceNotFoundError`.
+
 ## [2026-10-06] — Body-temperature measurement site in bodySite
 
 Thermometers can report where the temperature was taken, but the parser skipped

@@ -63,8 +63,8 @@ class WeightScaleBleAdapter(DeviceAdapter):
 
         Args:
             device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
-                When set, only advertisements whose name matches are considered,
-                in addition to the ``matches`` check.
+                When set, only devices whose advertised name contains it (ignoring
+                case) are considered, in addition to the ``matches`` check.
             on_state_change: Optional async callback invoked on every connection
                 state transition, wired by ``cli.py`` to relay state to the
                 dashboard.

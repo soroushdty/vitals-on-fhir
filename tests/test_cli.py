@@ -8,6 +8,7 @@ per-key precedence helpers are unit-tested here (spec/config-file, Task 4.1).
 """
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
@@ -252,3 +253,23 @@ def test_main_real_device_without_a_token_exits(
 
     assert exc_info.value.code == 2
     assert "requires VOF_API_TOKEN" in capsys.readouterr().err
+
+
+# --- logging: INFO records from the package reach the terminal ---
+
+
+def test_configure_logging_shows_package_info_records_once(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Connection events are logged at INFO; without a handler Python would drop them.
+
+    The shared ``_restore_package_logger`` fixture undoes the setup afterwards.
+    """
+    cli._configure_logging()
+    cli._configure_logging()
+    logging.getLogger("vitals_on_fhir.adapters.ble").info("connected to BLE device")
+    logging.getLogger("bleak.backends").info("third-party detail")
+
+    err = capsys.readouterr().err
+    assert err.count("connected to BLE device") == 1
+    assert "third-party detail" not in err

@@ -24,6 +24,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import logging
+import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -51,6 +52,10 @@ _BACKOFF_FACTOR = 2.0
 
 #: Sentinel pushed onto the queue to unblock ``vitals()`` on disconnect.
 _DISCONNECT_SENTINEL = object()
+
+
+class DeviceNotFoundError(RuntimeError):
+    """No advertising or already-connected device matched during one search."""
 
 
 class GattCharacteristicParser(abc.ABC):
@@ -109,8 +114,8 @@ class BleConnection:
                 :class:`GattCharacteristicParser` used to decode notifications.
                 Called lazily on first consumption of :meth:`vitals`.
             device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
-                When set, only advertisements whose name matches are considered,
-                in addition to the ``matches`` predicate.
+                When set, only devices whose advertised name contains it (ignoring
+                case) are considered, in addition to the ``matches`` predicate.
             on_state_change: Optional async callback invoked on every connection
                 state transition, used to relay state to the dashboard.
         """
@@ -132,65 +137,132 @@ class BleConnection:
         return self._state
 
     async def connect(self) -> None:
-        """Scan for the device, connect, and subscribe to notifications.
+        """Find the device, connect, and subscribe to notifications.
 
-        Imports ``bleak`` lazily. Sets ``CONNECTING`` while scanning and
-        connecting, then ``CONNECTED`` once the notification subscription is in
-        place. Exactly one device is connected per session (FR-1, FR-2).
+        Imports ``bleak`` lazily. Sets ``CONNECTING``, then keeps looking for a
+        matching device until one is found and subscribed, retrying with capped
+        exponential backoff (a device that is out of range, not yet
+        broadcasting, or briefly held by another app is not a fatal error).
+        Each failed attempt is logged at ``WARNING`` with the reason. The state
+        becomes ``CONNECTED`` once the notification subscription is in place.
+        Exactly one device is connected per session (FR-1, FR-2).
+
+        Returns early, without connecting, if :meth:`disconnect` is called
+        while it is still looking.
 
         Raises:
             RuntimeError: if ``bleak`` (or the underlying Bluetooth stack) is
-                unavailable, or if no matching device is found.
+                unavailable; the state returns to ``DISCONNECTED``.
         """
         self._closing = False
         await self._set_state(ConnectionState.CONNECTING)
         try:
-            await self._connect_once()
+            bleak: Any = _import_bleak()
         except RuntimeError:
+            await self._set_state(ConnectionState.DISCONNECTED)
             raise
-        except Exception as exc:  # pragma: no cover - hardware path
-            raise RuntimeError(f"BLE connection failed: {exc}") from exc
+        await self._connect_with_retry(bleak)
 
-    async def _connect_once(self) -> None:
-        """Perform a single scan-connect-subscribe cycle. Imports ``bleak`` lazily."""
-        bleak: Any = _import_bleak()
+    async def _connect_with_retry(self, bleak: Any) -> None:
+        """Repeat :meth:`_connect_once` with capped backoff until it succeeds or closing."""
+        backoff = _BACKOFF_INITIAL
+        while not self._closing:
+            try:
+                await self._connect_once(bleak)
+            except Exception as exc:
+                if self._closing:
+                    return
+                reason = str(exc) or type(exc).__name__
+                logger.warning("BLE device not connected: %s. Retrying in %.0fs.", reason, backoff)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * _BACKOFF_FACTOR, _BACKOFF_MAX)
+            else:
+                return
 
-        device = await self._scan_for_device(bleak)
-        if device is None:
-            raise RuntimeError("no matching BLE device found during scan")
+    async def _connect_once(self, bleak: Any) -> None:
+        """Perform a single find-connect-subscribe cycle.
+
+        If subscribing fails after the link is up, the link is closed again.
+        BlueZ keeps a link open after the client that made it goes away, and a
+        connected device stops advertising, so an abandoned link would hide the
+        device from every later scan.
+        """
+        device = await self._find_device(bleak)
 
         loop = asyncio.get_running_loop()
         client = bleak.BleakClient(device, disconnected_callback=self._on_disconnected)
         await client.connect()
-        self._client = client
-        logger.info("connected to BLE device")
 
         def _notification_callback(_characteristic: object, data: bytearray) -> None:
             # Runs on bleak's thread: do no async work here. Hand the raw bytes
             # back to the event loop for parsing in ``vitals()``.
             loop.call_soon_threadsafe(self._queue.put_nowait, bytes(data))
 
-        await client.start_notify(self._characteristic_uuid, _notification_callback)
+        try:
+            await client.start_notify(self._characteristic_uuid, _notification_callback)
+        except BaseException:
+            await _disconnect_quietly(client)
+            raise
+        if self._closing:
+            # ``disconnect()`` ran while this attempt was in flight; it found no
+            # live client to close, so close this one here.
+            await _disconnect_quietly(client)
+            return
+        self._client = client
+        logger.info("connected to BLE device %s", getattr(device, "name", None) or "(unnamed)")
         await self._set_state(ConnectionState.CONNECTED)
 
-    async def _scan_for_device(self, bleak: Any) -> Any:
-        """Scan for advertisements and return the first one that matches.
+    async def _find_device(self, bleak: Any) -> Any:
+        """Return the device to connect to, or raise :class:`DeviceNotFoundError`.
 
-        A candidate matches when the ``matches`` predicate returns ``True`` and,
-        if a ``device_name`` filter is configured, the advertised name matches.
+        Scans for advertisements carrying the service UUID first. If none is
+        accepted, falls back to devices that are already connected to this
+        computer: a connected device does not advertise, so a scan alone never
+        finds a band that the operating system (or an earlier run of this
+        service) still holds a link to.
         """
-        scanner_cls = bleak.BleakScanner
-        devices = await scanner_cls.discover(
-            service_uuids=[self._service_uuid],
-        )
+        advertised = list(await bleak.BleakScanner.discover(service_uuids=[self._service_uuid]))
+        device = self._select(advertised)
+        if device is not None:
+            return device
+        connected = await _find_connected_devices(self._service_uuid)
+        device = self._select(connected)
+        if device is not None:
+            logger.info("using a BLE device that is already connected to this computer")
+            return device
+        raise DeviceNotFoundError(self._not_found_reason(advertised + connected))
+
+    def _select(self, devices: list[Any]) -> Any:
+        """Return the first device accepted by the name filter and ``matches``."""
         for device in devices:
-            if self._device_name is not None:
-                name = getattr(device, "name", None)
-                if name != self._device_name:
-                    continue
-            if self._matches(device):
+            if self._name_accepted(getattr(device, "name", None)) and self._matches(device):
                 return device
         return None
+
+    def _name_accepted(self, name: object) -> bool:
+        """Apply the ``device_name`` filter: a case-insensitive part of the advertised name."""
+        if self._device_name is None:
+            return True
+        return isinstance(name, str) and self._device_name.casefold() in name.casefold()
+
+    def _not_found_reason(self, seen: list[Any]) -> str:
+        """Explain why no device was selected, naming what the scan did see."""
+        service = _short_uuid(self._service_uuid)
+        if not seen:
+            return (
+                f"no device with service {service} found; check that it is on, in range "
+                "and broadcasting, and not connected to a phone or another app"
+            )
+        names = sorted({str(getattr(d, "name", None) or "(unnamed)") for d in seen})
+        reason = (
+            f"found {', '.join(repr(n) for n in names)} with service {service}, but none matched"
+        )
+        if self._device_name is not None:
+            reason += (
+                f" (VOF_DEVICE_NAME is {self._device_name!r} and must be part of the "
+                "advertised name)"
+            )
+        return reason
 
     def vitals(self) -> AsyncIterator[VitalSign]:
         """Yield readings parsed from BLE notifications.
@@ -224,13 +296,15 @@ class BleConnection:
             self._parser = self._parser_factory()
         return self._parser
 
-    def _on_disconnected(self, _client: object) -> None:
+    def _on_disconnected(self, client: object) -> None:
         """``bleak`` disconnect callback: trigger a reconnection loop.
 
         Runs on bleak's thread. Schedules the reconnection coroutine on the
-        event loop unless the adapter is intentionally closing.
+        event loop unless the adapter is intentionally closing, or the client
+        is not the live one (a link closed after a failed subscription is
+        already being retried by the connect loop).
         """
-        if self._closing:
+        if self._closing or client is not self._client:
             return
         try:
             loop = asyncio.get_running_loop()
@@ -239,7 +313,7 @@ class BleConnection:
         loop.call_soon_threadsafe(lambda: asyncio.ensure_future(self._reconnect_loop()))
 
     async def _reconnect_loop(self) -> None:
-        """Retry ``connect`` with capped exponential backoff until it succeeds.
+        """Retry the connection with capped exponential backoff until it succeeds.
 
         Sets ``RECONNECTING`` and keeps retrying while not closing. On success
         the state returns to ``CONNECTED`` and downstream consumption resumes
@@ -248,19 +322,9 @@ class BleConnection:
         if self._closing:
             return
         await self._set_state(ConnectionState.RECONNECTING)
-        backoff = _BACKOFF_INITIAL
-        while not self._closing:
-            try:
-                await self._connect_once()
-            except Exception as exc:  # pragma: no cover - hardware path
-                logger.info("reconnect attempt failed; retrying in %.1fs", backoff)
-                logger.debug("reconnect error detail: %s", exc)
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * _BACKOFF_FACTOR, _BACKOFF_MAX)
-                continue
-            else:
-                logger.info("reconnected to BLE device")
-                return
+        await self._connect_with_retry(_import_bleak())
+        if not self._closing:
+            logger.info("reconnected to BLE device")
 
     async def disconnect(self) -> None:
         """Stop notifications, disconnect, and unblock ``vitals()``.
@@ -320,8 +384,8 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
 
         Args:
             device_name: Optional BLE advertised-name filter (``VOF_DEVICE_NAME``).
-                When set, only advertisements whose name matches are considered,
-                in addition to the subclass ``matches`` check.
+                When set, only devices whose advertised name contains it (ignoring
+                case) are considered, in addition to the subclass ``matches`` check.
             on_state_change: Optional async callback invoked on every connection
                 state transition. Wired by ``cli.py`` to relay state to the
                 dashboard broadcaster; the adapter itself never imports
@@ -365,13 +429,14 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
         return self._connection.state
 
     async def connect(self) -> None:
-        """Scan for the device, connect, and subscribe to heart-rate notifications.
+        """Find the device, connect, and subscribe to heart-rate notifications.
 
-        Delegates to the composed :class:`BleConnection` (FR-1, FR-2).
+        Delegates to the composed :class:`BleConnection` (FR-1, FR-2), which
+        keeps looking until a matching device is found.
 
         Raises:
             RuntimeError: if ``bleak`` (or the underlying Bluetooth stack) is
-                unavailable, or if no matching device is found.
+                unavailable.
         """
         await self._connection.connect()
 
@@ -422,3 +487,66 @@ def _import_bleak() -> object:
             "install the 'bleak' dependency and ensure a Bluetooth stack is present"
         ) from exc
     return bleak
+
+
+async def _disconnect_quietly(client: Any) -> None:
+    """Close a client's link, logging rather than raising if that fails."""
+    try:
+        await client.disconnect()
+    except Exception as exc:  # pragma: no cover - hardware path
+        logger.debug("error closing a BLE link: %s", exc)
+
+
+def _short_uuid(uuid: str) -> str:
+    """Render a Bluetooth SIG base UUID as ``0x180D``; leave any other UUID as is."""
+    if uuid.endswith("-0000-1000-8000-00805f9b34fb") and uuid.startswith("0000"):
+        return f"0x{uuid[4:8].upper()}"
+    return uuid
+
+
+async def _find_connected_devices(service_uuid: str) -> list[Any]:
+    """Return devices offering *service_uuid* that are already connected to this computer.
+
+    Linux only: asks BlueZ over D-Bus for its known devices and keeps those
+    that are connected and list the service. Each becomes a ``bleak``
+    ``BLEDevice`` whose ``details`` carry the D-Bus object path and properties,
+    the form ``bleak``'s BlueZ backend accepts; ``bleak`` then reuses the
+    existing link instead of calling ``Connect``. On other platforms, or if
+    the lookup fails, returns an empty list. ``dbus_fast`` and ``bleak`` are
+    imported lazily.
+    """
+    if not sys.platform.startswith("linux"):
+        return []
+    try:
+        from bleak.backends.device import BLEDevice
+        from dbus_fast import BusType, Message, MessageType
+        from dbus_fast.aio import MessageBus
+
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            reply = await bus.call(
+                Message(
+                    destination="org.bluez",
+                    path="/",
+                    interface="org.freedesktop.DBus.ObjectManager",
+                    member="GetManagedObjects",
+                )
+            )
+        finally:
+            bus.disconnect()
+        if reply is None or reply.message_type != MessageType.METHOD_RETURN:
+            return []
+        devices: list[Any] = []
+        for path, interfaces in reply.body[0].items():
+            variants = interfaces.get("org.bluez.Device1")
+            if variants is None:
+                continue
+            props = {key: variant.value for key, variant in variants.items()}
+            if props.get("Connected") and service_uuid in props.get("UUIDs", []):
+                devices.append(
+                    BLEDevice(props["Address"], props.get("Name"), {"path": path, "props": props})
+                )
+        return devices
+    except Exception as exc:  # pragma: no cover - depends on the host's Bluetooth stack
+        logger.debug("could not list connected BLE devices: %s", exc)
+        return []

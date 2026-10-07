@@ -69,7 +69,7 @@ Config is loaded once in `cli.py` (the composition root) via `pydantic-settings`
 | `VOF_HOST` | `127.0.0.1` | Bind address |
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `mock-bp`, `mock-spo2`, `mock-temp`, `mock-weight`, `miband10`, `bp`, `spo2`, `temp`, `weight`, or `package.module.ClassName` |
-| `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter |
+| `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter: any part of the advertised name, ignoring case |
 | `VOF_HR_MIN` | `20` | Heart-rate plausibility lower bound (bpm) |
 | `VOF_HR_MAX` | `250` | Heart-rate plausibility upper bound (bpm) |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
