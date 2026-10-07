@@ -38,6 +38,8 @@ from vitals_on_fhir.api.auth import Authenticator
 from vitals_on_fhir.store import ObservationStore
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fhir.resources.R4B.device import Device
     from fhir.resources.R4B.patient import Patient
     from starlette.types import ExceptionHandler
@@ -75,7 +77,7 @@ def create_app(
     authenticator: Authenticator,
     broadcaster: BroadcasterLike,
     patient: Patient,
-    device: Device,
+    device: Device | Callable[[], Device],
     static_dir: str | Path | None = None,
     scenario_control: mock_control.ScenarioControl | None = None,
 ) -> FastAPI:
@@ -113,7 +115,11 @@ def create_app(
         broadcaster: The dashboard broadcaster; authenticated WebSocket
             connections are registered with it after ``accept()``.
         patient: The startup-built local ``Patient`` resource.
-        device: The startup-built ``Device`` resource for the connected device.
+        device: The ``Device`` resource for the connected device, or a
+            zero-argument callable returning it. A callable is called on every
+            ``GET /fhir/Device/{id}``, so details the adapter learns after
+            startup (such as the Bluetooth address of the matched device)
+            appear without a restart.
         static_dir: Filesystem path to the dashboard static assets.  When
             ``None``, no static mount is added (useful for API-only tests).
         scenario_control: Mock-adapter scenario switch.  When given, the
@@ -140,7 +146,9 @@ def create_app(
     app.dependency_overrides[routes.get_store] = lambda: store
     app.dependency_overrides[routes.get_authenticator] = lambda: authenticator
     app.dependency_overrides[routes.get_patient_resource] = lambda: patient
-    app.dependency_overrides[routes.get_device_resource] = lambda: device
+    app.dependency_overrides[routes.get_device_resource] = (
+        device if callable(device) else lambda: device
+    )
 
     if scenario_control is not None:
         app.include_router(mock_control.build_router(scenario_control))

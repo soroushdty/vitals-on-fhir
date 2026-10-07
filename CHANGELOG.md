@@ -5,6 +5,29 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Dashboard: welcome notes, device details, FHIR resource viewer
+
+The dashboard now shows the FHIR it receives. The safety and scope warnings moved
+from the bottom of the page into a notice that must be acknowledged before the page
+connects, and a FHIR resource viewer took their place. The device behind the
+readings is shown under the heart rate, read from the FHIR Device resource.
+
+- Added: welcome dialog with the Bluetooth-broadcast and research-use warnings; the
+  page connects only after "I understand" (remembered for the browser session),
+  and a footer button reopens it
+- Added: FHIR resources card: the latest Observation as highlighted JSON, values
+  changed since the previous reading flashed, pause/resume, the last 20 readings,
+  and `Patient/…` / `Device/…` references that open the resource from the API
+- Added: device details (manufacturer, model, identifiers, simulated flag) in the
+  latest-reading card, from `GET /fhir/Device/{id}`
+- Changed: `create_app(device=...)` also accepts a zero-argument callable, called on
+  every Device read; `cli.py` passes one, so the Device reflects what the adapter
+  learns after startup (the matched band's Bluetooth address)
+- Changed: `MiBand10Adapter.device_info` has no identifier until a band is matched;
+  it previously published `bluetooth_address` = `"unknown"`
+- Fixed: `docs/fhir-api.md` example used `Device/xiaomi-smart-band-10`; the id is
+  `smart-band-10`
+
 ## [2026-10-07] — Find BLE devices reliably
 
 A Xiaomi Smart Band 10 that was broadcasting heart rate was never found, for three

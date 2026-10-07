@@ -429,7 +429,10 @@ async def _run(settings: Settings, adapter_spec: str, authenticator: Authenticat
         # the composition root bridges the two structurally-compatible protocols.
         broadcaster=cast(BroadcasterLike, broadcaster),
         patient=patient,
-        device=device,
+        # Rebuilt per request: a BLE adapter learns its device's address only
+        # once a device is matched, after startup. The id (from the model) is
+        # stable, so ``device_ref`` above stays valid.
+        device=lambda: build_device(adapter.device_info),
         static_dir=_STATIC_DIR,
         # Only the simulated heart-rate device has scenarios to switch between.
         scenario_control=(
