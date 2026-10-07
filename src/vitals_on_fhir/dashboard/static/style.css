@@ -123,7 +123,8 @@ header h1 {
 }
 
 /* Logo: the full image on the start page, a small one beside the app title.
-   Rounded corners frame its own (off-white) background. */
+   Both have a transparent background; the dark variant has light lettering.
+   Show the variant for the active theme (same conditions as the dark tokens). */
 .logo-heading {
   margin: 0;
   line-height: 0;
@@ -132,7 +133,28 @@ header h1 {
 .logo {
   width: min(300px, 70vw);
   height: auto;
-  border-radius: 14px;
+}
+
+.for-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .for-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .for-dark {
+    display: inline;
+  }
+}
+
+:root[data-theme="dark"] .for-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .for-dark {
+  display: inline;
 }
 
 .app-title {
@@ -145,7 +167,6 @@ header h1 {
 .logo-small {
   width: 56px;
   height: auto;
-  border-radius: 8px;
 }
 
 .subtitle {

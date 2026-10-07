@@ -1,5 +1,8 @@
 <h1 align="center">
-  <img src="src/vitals_on_fhir/dashboard/static/logo.jpeg" alt="vitals-on-fhir" width="320" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/vitals_on_fhir/dashboard/static/logo-dark.webp" />
+    <img src="src/vitals_on_fhir/dashboard/static/logo-light.webp" alt="vitals-on-fhir" width="320" />
+  </picture>
 </h1>
 
 **Consumer wearables and home health devices → HL7® FHIR® R4.**

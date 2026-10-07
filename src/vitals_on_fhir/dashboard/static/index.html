@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>vitals-on-fhir — live heart rate</title>
-  <link rel="icon" href="logo.jpeg" />
+  <link rel="icon" href="logo-light.webp" />
   <link rel="stylesheet" href="style.css" />
   <!-- Applies a saved light/dark choice before the page is drawn. -->
   <script src="theme.js"></script>
@@ -31,9 +31,13 @@
        "I understand", and the Home button brings the user back here. -->
   <div class="view" id="home-view">
     <header>
-      <!-- The logo carries the name and the tagline; its alt text is the heading. -->
+      <!-- The logo carries the name and the tagline; its alt text is the heading.
+           style.css shows the variant for the active theme. -->
       <h1 class="logo-heading">
-        <img class="logo" src="logo.jpeg" alt="vitals-on-fhir" width="613" height="638" />
+        <img class="logo for-light" src="logo-light.webp" alt="vitals-on-fhir"
+             width="613" height="638" />
+        <img class="logo for-dark" src="logo-dark.webp" alt="vitals-on-fhir"
+             width="613" height="638" />
       </h1>
     </header>
 
@@ -90,7 +94,8 @@
     <header class="app-header">
       <button type="button" class="secondary" id="home-button">Home</button>
       <div class="app-title">
-        <img class="logo-small" src="logo.jpeg" alt="" width="613" height="638" />
+        <img class="logo-small for-light" src="logo-light.webp" alt="" width="613" height="638" />
+        <img class="logo-small for-dark" src="logo-dark.webp" alt="" width="613" height="638" />
         <div>
           <h1>vitals-on-fhir</h1>
           <p class="subtitle">Live heart-rate monitor</p>
