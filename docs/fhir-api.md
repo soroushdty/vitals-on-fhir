@@ -30,7 +30,7 @@ Each accepted heart-rate measurement becomes an Observation conforming to the [U
   },
   "subject": { "reference": "Patient/local-patient" },
   "performer": [{ "reference": "Patient/local-patient" }],
-  "device": { "reference": "Device/xiaomi-smart-band-10" },
+  "device": { "reference": "Device/smart-band-10" },
   "effectiveDateTime": "2026-09-21T18:04:12.345Z",
   "issued": "2026-09-21T18:04:12.402Z",
   "valueQuantity": {
@@ -56,7 +56,7 @@ All requests require `Authorization: Bearer <token>`, except in demo mode (no `V
 | `GET` | `/fhir/Observation` | Search. Supports `code` (matches any coding, so SpO2 is found by `59408-5` or `2708-6`), `date`, `_sort=-date`, `_count` |
 | `GET` | `/fhir/Observation/{id}` | Read one Observation |
 | `GET` | `/fhir/Patient/{id}` | Read the configured local Patient |
-| `GET` | `/fhir/Device/{id}` | Read the connected Device |
+| `GET` | `/fhir/Device/{id}` | Read the connected Device. Built from the adapter on each request, so a Bluetooth device's address appears once the device has been found |
 
 ```bash
 curl -H "Authorization: Bearer $VOF_API_TOKEN" \

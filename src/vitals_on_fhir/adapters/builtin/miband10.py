@@ -79,12 +79,13 @@ class MiBand10Adapter(BleHeartRateAdapter):
         """Return device metadata for the Xiaomi Smart Band 10.
 
         The ``bluetooth_address`` identifier is populated from the matched
-        advertisement's address once :meth:`matches` has selected a device;
-        before a device is matched it is reported as ``"unknown"``.
+        advertisement's address once :meth:`matches` has selected a device.
+        Before a device is matched there is no identifier: a placeholder such
+        as ``"unknown"`` would be published as if it were a real identifier.
         """
         address = self._bluetooth_address
         return DeviceInfo(
             manufacturer="Xiaomi",
             model="Smart Band 10",
-            identifiers={"bluetooth_address": address if address is not None else "unknown"},
+            identifiers={} if address is None else {"bluetooth_address": address},
         )

@@ -261,10 +261,222 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-.notice .warning {
+/* Safety and scope notes, shown as a modal until acknowledged. */
+.welcome {
+  max-width: 560px;
+  width: calc(100% - 2rem);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--card-bg);
+}
+
+.welcome::backdrop {
+  background: rgba(20, 28, 36, 0.55);
+}
+
+.welcome h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.welcome .warning {
   background: var(--warning-bg);
   border-left: 4px solid var(--warning-border);
   padding: 0.75rem 1rem;
   border-radius: 4px;
   margin: 0.75rem 0 0;
+}
+
+.welcome-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+footer {
+  text-align: center;
+  padding: 0 1rem 2rem;
+}
+
+button.link {
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--accent);
+  background: none;
+  text-decoration: underline;
+}
+
+button.secondary {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--accent);
+  background: var(--card-bg);
+  border: 1px solid var(--accent);
+}
+
+/* Device details under the latest reading. */
+.device-props {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.device-props[hidden] {
+  display: none;
+}
+
+.device-props div {
+  display: contents;
+}
+
+.device-props dt {
+  color: var(--muted);
+}
+
+.device-props dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* FHIR resource viewer. */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-head h2 {
+  margin: 0;
+}
+
+.fhir-note {
+  margin: 0.5rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.fhir-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.fhir-trail .trail-link {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  text-decoration: underline;
+}
+
+.fhir-trail .trail-sep {
+  color: var(--muted);
+}
+
+.json {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  max-height: 28rem;
+  overflow: auto;
+  background: #0f1720;
+  color: #d6dde5;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.json .json-key {
+  color: #8fc7ff;
+}
+
+.json .json-string {
+  color: #b5e3a1;
+}
+
+.json .json-number {
+  color: #ffcf7a;
+}
+
+.json .json-boolean,
+.json .json-null {
+  color: #f0a3c8;
+}
+
+.json .json-ref {
+  padding: 0;
+  font: inherit;
+  color: #7fe0d0;
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Values that differ from the previous reading flash, then settle. */
+.json .json-changed {
+  border-radius: 3px;
+  animation: json-changed 1.6s ease-out;
+}
+
+@keyframes json-changed {
+  from {
+    background: rgba(255, 207, 122, 0.45);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .json .json-changed {
+    animation: none;
+    outline: 1px solid rgba(255, 207, 122, 0.6);
+  }
+}
+
+.fhir-recent-heading {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.fhir-recent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: 0.85rem;
+}
+
+.fhir-recent .recent-item {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border-radius: 4px;
+}
+
+.fhir-recent .recent-item:hover {
+  background: var(--bg);
+}
+
+.fhir-recent .recent-item[aria-current="true"] {
+  background: var(--bg);
+  font-weight: 600;
 }

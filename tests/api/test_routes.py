@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
@@ -23,6 +23,9 @@ from vitals_on_fhir.fhir import ScalarVitalMapper, build_device, build_patient
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.vitals import BodyWeight, HeartRate
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
+
+if TYPE_CHECKING:
+    from fhir.resources.R4B.device import Device
 
 # Synthetic token — never a real credential (security-privacy.md).
 _TOKEN = "test-token-do-not-use"
@@ -106,3 +109,42 @@ def test_total_counts_only_observations_matching_the_code() -> None:
 
     assert body["total"] == 3
     assert len(body["entry"]) == 1
+
+
+def test_device_provider_is_read_on_every_request() -> None:
+    """A callable ``device`` is called per request, so later details are served.
+
+    A BLE adapter learns its device's Bluetooth address only once the device is
+    found, after the app was built.
+    """
+    identifiers: dict[str, str] = {}
+
+    def current_device() -> Device:
+        return build_device(
+            DeviceInfo(manufacturer="Xiaomi", model="Smart Band 10", identifiers=dict(identifiers))
+        )
+
+    app = create_app(
+        store=InMemoryObservationStore(max_size=10),
+        authenticator=StaticTokenAuthenticator(_TOKEN),
+        broadcaster=_FakeBroadcaster(),
+        patient=build_patient("local-patient"),
+        device=current_device,
+    )
+
+    async def read_device() -> dict[str, Any]:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                "/fhir/Device/smart-band-10", headers={"Authorization": f"Bearer {_TOKEN}"}
+            )
+        assert response.status_code == 200
+        body: dict[str, Any] = json.loads(response.content)
+        return body
+
+    before = asyncio.run(read_device())
+    identifiers["bluetooth_address"] = "D9:AF:51:34:DC:33"
+    after = asyncio.run(read_device())
+
+    assert "identifier" not in before
+    assert after["identifier"] == [{"system": "bluetooth_address", "value": "D9:AF:51:34:DC:33"}]

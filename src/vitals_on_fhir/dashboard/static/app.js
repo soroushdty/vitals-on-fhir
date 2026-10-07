@@ -23,8 +23,14 @@
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
  *
- * On load the page asks GET /status whether a token is needed. In demo mode
- * (no token set on the server) it hides the token form and connects at once.
+ * On load the page first shows the safety and scope notes, which must be
+ * acknowledged (once per browser session). It then asks GET /status whether a
+ * token is needed. In demo mode (no token set on the server) it hides the
+ * token form and connects at once.
+ *
+ * Every Observation is also shown as JSON in the FHIR resources card, and the
+ * Device it references is read from GET /fhir/Device/{id} and summarised under
+ * the reading.
  */
 
 (function () {
@@ -84,6 +90,14 @@
     els.simDescription = document.getElementById("sim-description");
     els.simStatus = document.getElementById("sim-status");
     els.readingNote = document.getElementById("reading-note");
+    els.deviceProps = document.getElementById("device-props");
+    els.welcome = document.getElementById("welcome-dialog");
+    els.welcomeAck = document.getElementById("welcome-ack");
+    els.welcomeReopen = document.getElementById("welcome-reopen");
+    els.fhirPause = document.getElementById("fhir-pause");
+    els.fhirTrail = document.getElementById("fhir-trail");
+    els.fhirJson = document.getElementById("fhir-json");
+    els.fhirRecent = document.getElementById("fhir-recent");
   }
 
   function setStatus(text, kind) {
@@ -268,6 +282,8 @@
     if (!resource || typeof resource !== "object") {
       return;
     }
+    viewObservation(resource);
+    noteDeviceReference(resource);
     var quantity = resource.valueQuantity || {};
     var value = quantity.value;
     if (value !== undefined && value !== null) {
@@ -298,6 +314,8 @@
       lastReadingAt = Date.now();
       setStatus(label, "connected");
       markLive();
+      // The device may have been found only now, with its address.
+      refreshDevice();
     } else {
       // Disconnected / reconnecting / connecting: stop showing new values.
       setStatus(label, "down");
@@ -314,6 +332,438 @@
     els.readingNote.hidden = true;
     markLive();
     drawChart();
+    resetViewer();
+  }
+
+  // ---------------------------------------------------------------------
+  // Welcome notice: the safety and scope notes must be acknowledged before
+  // the page connects. The acknowledgement lasts for this browser session.
+  // ---------------------------------------------------------------------
+
+  var WELCOME_KEY = "vof-welcome-acknowledged";
+
+  function welcomeAcknowledged() {
+    try {
+      return window.sessionStorage.getItem(WELCOME_KEY) === "yes";
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function openWelcome() {
+    if (els.welcome.open) {
+      return;
+    }
+    if (typeof els.welcome.showModal === "function") {
+      els.welcome.showModal();
+    } else {
+      els.welcome.setAttribute("open", "");
+    }
+  }
+
+  // Show the notes unless already acknowledged, then call *proceed* once.
+  function requireWelcome(proceed) {
+    var acknowledged = welcomeAcknowledged();
+    els.welcome.addEventListener("cancel", function (event) {
+      // Escape must not stand in for "I understand" the first time.
+      if (!acknowledged) {
+        event.preventDefault();
+      }
+    });
+    els.welcome.addEventListener("close", function () {
+      // Some browsers close a modal on a repeated Escape despite the above.
+      if (!acknowledged) {
+        openWelcome();
+      }
+    });
+    els.welcomeAck.addEventListener("click", function () {
+      var first = !acknowledged;
+      acknowledged = true;
+      try {
+        window.sessionStorage.setItem(WELCOME_KEY, "yes");
+      } catch (err) {
+        /* storage blocked: ask again next time */
+      }
+      els.welcome.close();
+      if (first) {
+        proceed();
+      }
+    });
+    els.welcomeReopen.addEventListener("click", openWelcome);
+    if (acknowledged) {
+      proceed();
+    } else {
+      openWelcome();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // FHIR resource access: the page reads related resources through the same
+  // read-only API any other FHIR client would use.
+  // ---------------------------------------------------------------------
+
+  // A relative literal reference this server can resolve, e.g. "Device/mock-hr".
+  var LOCAL_REFERENCE = /^(Patient|Device|Observation)\/([A-Za-z0-9\-.]{1,64})$/;
+
+  function fetchResource(reference) {
+    var match = LOCAL_REFERENCE.exec(reference);
+    if (!match) {
+      return Promise.reject(new Error("unsupported reference"));
+    }
+    var url = "/fhir/" + match[1] + "/" + encodeURIComponent(match[2]);
+    return fetch(url, { headers: authHeaders({ Accept: "application/fhir+json" }) }).then(
+      function (response) {
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        return response.json();
+      }
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Device details under the reading, from the FHIR Device the readings
+  // reference. Fetched again on (re)connect: a Bluetooth device's address is
+  // known only once it has been found.
+  // ---------------------------------------------------------------------
+
+  var deviceReference = null;
+
+  var IDENTIFIER_LABELS = {
+    bluetooth_address: "Bluetooth address",
+    profile: "Bluetooth profile",
+    mock: "Simulator ID",
+  };
+
+  function identifierLabel(system) {
+    if (IDENTIFIER_LABELS[system]) {
+      return IDENTIFIER_LABELS[system];
+    }
+    var words = String(system).replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
+  function isSimulated(resource) {
+    var security = (resource.meta && resource.meta.security) || [];
+    return security.some(function (label) {
+      return label && label.code === "HTEST";
+    });
+  }
+
+  function addDeviceRow(term, detail) {
+    var row = document.createElement("div");
+    var dt = document.createElement("dt");
+    var dd = document.createElement("dd");
+    dt.textContent = term;
+    dd.textContent = detail;
+    row.appendChild(dt);
+    row.appendChild(dd);
+    els.deviceProps.appendChild(row);
+  }
+
+  function renderDevice(device) {
+    els.deviceProps.replaceChildren();
+    var names = (device.deviceName || []).map(function (entry) {
+      return entry.name;
+    });
+    var model = [device.manufacturer, names[0]].filter(Boolean).join(" ");
+    addDeviceRow("Device", model || "Unnamed device");
+    (device.identifier || []).forEach(function (identifier) {
+      if (identifier && identifier.value) {
+        addDeviceRow(identifierLabel(identifier.system), identifier.value);
+      }
+    });
+    if (isSimulated(device)) {
+      addDeviceRow("Data", "Simulated (test data)");
+    }
+    els.deviceProps.hidden = false;
+  }
+
+  function refreshDevice() {
+    if (!deviceReference) {
+      return;
+    }
+    fetchResource(deviceReference)
+      .then(renderDevice)
+      .catch(function () {
+        /* keep whatever is shown */
+      });
+  }
+
+  function noteDeviceReference(resource) {
+    var reference = resource.device && resource.device.reference;
+    if (typeof reference === "string" && reference !== deviceReference) {
+      deviceReference = reference;
+      refreshDevice();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // FHIR resource viewer: the latest Observation as highlighted JSON, values
+  // that changed since the previous one flashed, a pause switch, the recent
+  // readings, and references that open the resource they point to.
+  // ---------------------------------------------------------------------
+
+  var RECENT_LIMIT = 20;
+  var viewer = {
+    recent: [], // received Observations, newest first
+    trail: [], // [{ label, resource }]: the Observation, then opened references
+    previous: null, // the Observation shown live before the current one
+    paused: false,
+    missed: 0, // Observations received while paused
+  };
+
+  function span(className, text) {
+    var node = document.createElement("span");
+    node.className = className;
+    node.textContent = text;
+    return node;
+  }
+
+  function isLeaf(value) {
+    return value === null || typeof value !== "object";
+  }
+
+  // Paths ("valueQuantity.value", "code.coding[0].code") of leaves in *next*
+  // whose value differs from *prev*, or that *prev* lacks.
+  function changedPaths(prev, next) {
+    var changed = {};
+    function walk(a, b, path) {
+      if (isLeaf(b)) {
+        if (!isLeaf(a) || a !== b) {
+          changed[path] = true;
+        }
+        return;
+      }
+      var keys = Array.isArray(b) ? b.map(function (_, i) { return i; }) : Object.keys(b);
+      keys.forEach(function (key) {
+        var childPath = Array.isArray(b) ? path + "[" + key + "]" : (path ? path + "." : "") + key;
+        walk(a && typeof a === "object" ? a[key] : undefined, b[key], childPath);
+      });
+    }
+    if (prev) {
+      walk(prev, next, "");
+    }
+    return changed;
+  }
+
+  function referenceButton(value) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "json-ref";
+    button.textContent = JSON.stringify(value);
+    button.title = "Open " + value;
+    button.addEventListener("click", function () {
+      openReference(value);
+    });
+    return button;
+  }
+
+  // Append *value* to *out* as pretty-printed JSON (two-space indent, the
+  // same layout as JSON.stringify(value, null, 2)) built from text nodes.
+  function appendJson(out, value, path, indent, changed, key) {
+    if (isLeaf(value)) {
+      var kind = value === null ? "null" : typeof value;
+      var node =
+        key === "reference" && typeof value === "string" && LOCAL_REFERENCE.test(value)
+          ? referenceButton(value)
+          : span("json-" + kind, JSON.stringify(value));
+      if (changed[path]) {
+        node.classList.add("json-changed");
+      }
+      out.appendChild(node);
+      return;
+    }
+    var isArray = Array.isArray(value);
+    var keys = isArray ? value.map(function (_, i) { return i; }) : Object.keys(value);
+    var open = isArray ? "[" : "{";
+    var close = isArray ? "]" : "}";
+    if (keys.length === 0) {
+      out.appendChild(document.createTextNode(open + close));
+      return;
+    }
+    var inner = indent + "  ";
+    out.appendChild(document.createTextNode(open + "\n"));
+    keys.forEach(function (k, index) {
+      out.appendChild(document.createTextNode(inner));
+      var childPath = isArray ? path + "[" + k + "]" : (path ? path + "." : "") + k;
+      if (!isArray) {
+        out.appendChild(span("json-key", JSON.stringify(k)));
+        out.appendChild(document.createTextNode(": "));
+      }
+      appendJson(out, value[k], childPath, inner, changed, isArray ? key : k);
+      out.appendChild(document.createTextNode(index < keys.length - 1 ? ",\n" : "\n"));
+    });
+    out.appendChild(document.createTextNode(indent + close));
+  }
+
+  function renderTrail() {
+    els.fhirTrail.replaceChildren();
+    viewer.trail.forEach(function (step, index) {
+      if (index > 0) {
+        els.fhirTrail.appendChild(span("trail-sep", "›"));
+      }
+      var last = index === viewer.trail.length - 1;
+      var item = document.createElement(last ? "span" : "button");
+      item.textContent = step.label;
+      if (last) {
+        item.className = "trail-current";
+        item.setAttribute("aria-current", "true");
+      } else {
+        item.type = "button";
+        item.className = "trail-link";
+        item.addEventListener("click", function () {
+          viewer.trail = viewer.trail.slice(0, index + 1);
+          showTrail({}, true);
+        });
+      }
+      els.fhirTrail.appendChild(item);
+    });
+  }
+
+  // Draw the last resource on the trail, highlighting the *changed* paths.
+  // Navigating to another resource starts at its top; live updates keep the
+  // reader's scroll position.
+  function showTrail(changed, navigated) {
+    renderTrail();
+    var step = viewer.trail[viewer.trail.length - 1];
+    els.fhirJson.replaceChildren();
+    if (!step) {
+      els.fhirJson.textContent = "Waiting for the first resource…";
+      return;
+    }
+    appendJson(els.fhirJson, step.resource, "", "", changed, null);
+    if (navigated) {
+      els.fhirJson.scrollTop = 0;
+    }
+  }
+
+  function resourceLabel(resource) {
+    return resource.resourceType + (resource.id ? "/" + resource.id : "");
+  }
+
+  function openReference(reference) {
+    fetchResource(reference)
+      .then(function (resource) {
+        viewer.trail.push({ label: reference, resource: resource });
+        setPaused(true); // keep the opened resource on screen
+        showTrail({}, true);
+      })
+      .catch(function (err) {
+        var error = { error: "Could not open " + reference + ": " + err.message };
+        viewer.trail.push({ label: reference, resource: error });
+        showTrail({}, true);
+      });
+  }
+
+  function showObservation(resource, changed, navigated) {
+    viewer.trail = [{ label: resourceLabel(resource), resource: resource }];
+    showTrail(changed, navigated);
+  }
+
+  function updatePauseButton() {
+    els.fhirPause.setAttribute("aria-pressed", viewer.paused ? "true" : "false");
+    if (!viewer.paused) {
+      els.fhirPause.textContent = "Pause";
+    } else if (viewer.missed > 0) {
+      els.fhirPause.textContent = "Resume (" + viewer.missed + " new)";
+    } else {
+      els.fhirPause.textContent = "Resume";
+    }
+  }
+
+  function setPaused(paused) {
+    viewer.paused = paused;
+    if (!paused) {
+      viewer.missed = 0;
+      var latest = viewer.recent[0];
+      if (latest) {
+        showObservation(latest, {}, true);
+        viewer.previous = latest;
+      }
+    }
+    updatePauseButton();
+    renderRecent();
+  }
+
+  // Short names for the LOINC codes this project emits (vitals/builtin/).
+  var VITAL_NAMES = {
+    "8867-4": "Heart rate",
+    "85354-9": "Blood pressure",
+    "59408-5": "Oxygen saturation",
+    "8310-5": "Body temperature",
+    "29463-7": "Body weight",
+  };
+
+  function formatQuantity(quantity) {
+    return quantity && quantity.value !== undefined ? String(quantity.value) : "?";
+  }
+
+  // One line per reading: time, what was measured, and its value(s).
+  function summarize(resource) {
+    var coding = (resource.code && resource.code.coding) || [];
+    var first = coding[0] || {};
+    var name = VITAL_NAMES[first.code] || (first.code ? "LOINC " + first.code : "Observation");
+    var time = resource.effectiveDateTime ? formatTimestamp(resource.effectiveDateTime) : "";
+    var value = "";
+    if (resource.valueQuantity) {
+      value = formatQuantity(resource.valueQuantity) + " " + (resource.valueQuantity.unit || "");
+    } else if (resource.component && resource.component.length) {
+      var parts = resource.component.map(function (component) {
+        return formatQuantity(component.valueQuantity);
+      });
+      var unit = (resource.component[0].valueQuantity || {}).unit || "";
+      value = parts.join("/") + " " + unit;
+    }
+    return [time, name, value.trim()].filter(Boolean).join(" · ");
+  }
+
+  function renderRecent() {
+    els.fhirRecent.replaceChildren();
+    var shown = viewer.trail[0] && viewer.trail[0].resource;
+    viewer.recent.forEach(function (resource) {
+      var item = document.createElement("li");
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "recent-item";
+      button.textContent = summarize(resource);
+      if (resource === shown) {
+        button.setAttribute("aria-current", "true");
+      }
+      button.addEventListener("click", function () {
+        setPaused(true);
+        showObservation(resource, {}, true);
+        renderRecent();
+      });
+      item.appendChild(button);
+      els.fhirRecent.appendChild(item);
+    });
+  }
+
+  function viewObservation(resource) {
+    viewer.recent.unshift(resource);
+    if (viewer.recent.length > RECENT_LIMIT) {
+      viewer.recent.length = RECENT_LIMIT;
+    }
+    if (viewer.paused) {
+      viewer.missed += 1;
+      updatePauseButton();
+    } else {
+      showObservation(resource, changedPaths(viewer.previous, resource));
+      viewer.previous = resource;
+    }
+    renderRecent();
+  }
+
+  function resetViewer() {
+    viewer.recent = [];
+    viewer.trail = [];
+    viewer.previous = null;
+    viewer.missed = 0;
+    viewer.paused = false;
+    updatePauseButton();
+    showTrail({});
+    renderRecent();
   }
 
   function handleMessage(event) {
@@ -546,8 +996,12 @@
     els.form.addEventListener("submit", onSubmit);
     els.simSelect.addEventListener("change", showSelectedDescription);
     els.simStart.addEventListener("click", startScenario);
+    els.fhirPause.addEventListener("click", function () {
+      setPaused(!viewer.paused);
+    });
     drawChart();
-    checkAuthRequired();
+    // Connect only once the safety and scope notes are acknowledged.
+    requireWelcome(checkAuthRequired);
     // Slide the window forward between readings (and across disconnects).
     window.setInterval(function () {
       drawChart();
