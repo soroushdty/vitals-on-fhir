@@ -46,12 +46,14 @@ Pick a scenario and press **Simulate**: it starts from the beginning and clears 
 **Run with a Xiaomi Smart Band 10:**
 
 1. Enable heart-rate broadcast on the band (a heart-rate sharing setting; its location varies by firmware).
-2. Make sure the band isn't connected to another app that holds its only BLE connection.
+2. Make sure the band isn't connected to another app that holds its only BLE connection. A band already connected to this computer (for example, paired in the system Bluetooth settings) is fine on Linux: the service uses that connection.
 3. Set `VOF_API_TOKEN` in `.env` (real devices require it) and start the service:
 
 ```bash
 uv run vitals-on-fhir --adapter miband10
 ```
+
+Until the band is found, the service keeps looking and logs why each attempt failed, for example which devices it saw and whether `VOF_DEVICE_NAME` excluded them.
 
 **Run with a third-party adapter** by passing its fully qualified class path:
 
@@ -81,7 +83,7 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 | `VOF_HOST` | `127.0.0.1` | Bind address. Localhost by default |
 | `VOF_PORT` | `8000` | HTTP port |
 | `VOF_ADAPTER` | `mock` | `mock`, `mock-bp`, `mock-spo2`, `mock-temp`, `mock-weight` (simulated); `miband10`, `bp`, `spo2`, `temp`, `weight`, or a fully qualified class path (`package.module.ClassName`) (real devices) |
-| `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery |
+| `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery: any part of the advertised name, ignoring case (e.g. `Smart Band 10`) |
 | `VOF_DEVICE_USER_ID` | *(none)* | Multi-user BP cuff or scale: the device user (0–254) whose readings are recorded. Other users' readings are rejected, and so is every reading from a multi-user device while this is unset (ADR-0004). Single-user devices ignore it |
 | `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |

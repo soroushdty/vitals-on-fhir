@@ -43,7 +43,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import tzinfo
 from pathlib import Path
-from typing import cast
+from typing import TextIO, cast
 
 import uvicorn
 
@@ -457,6 +457,26 @@ async def _run(settings: Settings, adapter_spec: str, authenticator: Authenticat
     await asyncio.gather(server.serve(), _acquire())
 
 
+class _ConsoleHandler(logging.StreamHandler[TextIO]):
+    """The stderr handler :func:`_configure_logging` installs; its own type, so it is added once."""
+
+
+def _configure_logging() -> None:
+    """Send this package's ``INFO`` and higher log records to stderr.
+
+    Without a handler, Python drops ``INFO`` records, so connection events and
+    validation rejections never reach the terminal. Only the package logger is
+    configured; third-party libraries keep their defaults. Calling this again
+    adds no second handler.
+    """
+    package_logger = logging.getLogger("vitals_on_fhir")
+    package_logger.setLevel(logging.INFO)
+    if not any(isinstance(h, _ConsoleHandler) for h in package_logger.handlers):
+        handler = _ConsoleHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        package_logger.addHandler(handler)
+
+
 def main() -> None:
     """Start the vitals-on-fhir service.
 
@@ -468,6 +488,8 @@ def main() -> None:
     call in the codebase.  Configuration values (including ``VOF_API_TOKEN``)
     are never logged (NFR-5).
     """
+    _configure_logging()
+
     # ``--config`` selects which file the YAML tier reads and must be known
     # before Settings is built, so resolve it via a small parse_known_args pass
     # first (FR-CFG-6, design §4).  An explicit missing path fails loud here;
