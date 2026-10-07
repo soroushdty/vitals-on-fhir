@@ -5,6 +5,22 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Dashboard: scrolling heart-rate chart
+
+The "Heart rate, last 2 minutes" chart squeezed a fixed window into the card. It is
+now "Heart rate": a strip at a fixed time scale with a gridline every 10 seconds,
+counted from the session's first reading, that grows to the right and scrolls
+sideways.
+
+- Changed: the x axis is labelled in seconds (`0 s`, `10 s`, …) at 6 px per second;
+  the bpm axis stays fixed while the plot scrolls
+- Added: the chart follows the latest reading unless the user scrolls back; a
+  "Latest ›" button returns to it
+- Changed: a silence longer than 5 s (for example a disconnect) breaks the line
+  instead of joining across the gap
+- Changed: readings are kept for 30 minutes instead of 2; lowest, average and
+  highest cover the readings kept
+
 ## [2026-10-07] — Dashboard: start page with the token, Home button, side-by-side layout
 
 The access token moved from a card that stayed at the top of the page onto the

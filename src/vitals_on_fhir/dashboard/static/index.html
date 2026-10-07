@@ -104,10 +104,19 @@
           <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
         </section>
 
-        <!-- Live trend of the last two minutes of readings; drawn by app.js. -->
+        <!-- Live heart-rate strip chart, drawn by app.js: a fixed time scale with
+             10-second gridlines that grows to the right and scrolls sideways. -->
         <section class="card" aria-labelledby="chart-heading">
-          <h2 id="chart-heading">Heart rate, last 2 minutes</h2>
-          <div id="hr-chart" class="chart" role="img" aria-label="Live heart-rate chart"></div>
+          <div class="card-head">
+            <h2 id="chart-heading">Heart rate</h2>
+            <button type="button" class="secondary" id="chart-latest" hidden>Latest ›</button>
+          </div>
+          <div
+            id="hr-chart"
+            class="chart"
+            role="img"
+            aria-label="Live heart-rate chart. Scroll sideways for earlier readings."
+          ></div>
           <dl class="chart-stats">
             <div><dt>Lowest</dt><dd id="stat-min">—</dd></div>
             <div><dt>Average</dt><dd id="stat-avg">—</dd></div>
