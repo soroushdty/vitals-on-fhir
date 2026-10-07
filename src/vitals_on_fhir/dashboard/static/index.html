@@ -7,8 +7,25 @@
   <title>vitals-on-fhir — live heart rate</title>
   <link rel="icon" href="logo.jpeg" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Applies a saved light/dark choice before the page is drawn. -->
+  <script src="theme.js"></script>
 </head>
 <body>
+  <!-- Theme switch and the repository link, on both screens (theme.js). -->
+  <nav class="toolbar" aria-label="Page options">
+    <div class="theme-switch" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+    </div>
+    <a
+      class="repo-link"
+      href="https://github.com/soroushdty/vitals-on-fhir"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="vitals-on-fhir on GitHub (opens in a new tab)"
+    >GitHub ↗</a>
+  </nav>
+
   <!-- Start screen: the security and scope disclaimers (FR-5,
        security-privacy.md) and the access token. app.js connects only after
        "I understand", and the Home button brings the user back here. -->

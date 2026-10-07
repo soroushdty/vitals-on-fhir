@@ -104,6 +104,8 @@ def test_home_forgets_the_token_and_disconnects() -> None:
     assert "socket.close()" in disconnect
     assert "localStorage" not in script
     assert "sessionStorage" not in script
+    theme = (_STATIC / "theme.js").read_text(encoding="utf-8")
+    assert "token" not in theme.lower()
 
 
 def test_fhir_viewer_sits_beside_the_readings() -> None:
@@ -156,3 +158,47 @@ def test_logo_is_shipped_and_every_reference_resolves() -> None:
     assert html.count('src="logo.jpeg"') == 2
     assert 'rel="icon" href="logo.jpeg"' in html
     assert 'src="src/vitals_on_fhir/dashboard/static/logo.jpeg"' in readme
+
+
+def test_toolbar_with_theme_switch_and_repo_link_is_on_both_screens() -> None:
+    """The theme switch and the GitHub link sit outside both screens, so each shows them."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    toolbar = html[html.index('<nav class="toolbar"') : html.index("</nav>")]
+
+    assert 'data-theme-choice="light"' in toolbar
+    assert 'data-theme-choice="dark"' in toolbar
+    assert 'href="https://github.com/soroushdty/vitals-on-fhir"' in toolbar
+    assert 'target="_blank"' in toolbar
+    assert 'rel="noopener noreferrer"' in toolbar
+    assert html.index('<nav class="toolbar"') < html.index('id="home-view"')
+
+
+def test_theme_script_runs_in_head_and_stores_only_the_theme() -> None:
+    """``theme.js`` loads before the body is drawn and writes nothing but the theme name."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    theme = (_STATIC / "theme.js").read_text(encoding="utf-8")
+
+    assert html.index('<script src="theme.js"></script>') < html.index("</head>")
+    assert theme.count("setItem(") == 1
+    assert "setItem(STORAGE_KEY, theme)" in theme
+    assert "Storage" not in _script()  # app.js keeps nothing, the token included
+
+
+def _tokens(block: str) -> set[str]:
+    return {
+        line.split(":")[0].strip() for line in block.splitlines() if line.strip().startswith("--")
+    }
+
+
+def test_dark_theme_defines_every_colour_token() -> None:
+    """Both dark rules (system preference and explicit choice) cover every light token."""
+    css = (_STATIC / "style.css").read_text(encoding="utf-8")
+
+    def block(selector: str) -> str:
+        start = css.index(selector)
+        return css[start : css.index("}", start)]
+
+    light = _tokens(block(":root {"))
+    assert light
+    assert _tokens(block(':root:not([data-theme="light"]) {')) == light
+    assert _tokens(block(':root[data-theme="dark"] {')) == light
