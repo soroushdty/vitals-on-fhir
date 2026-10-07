@@ -5,6 +5,27 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Dashboard: start page with the token, Home button, side-by-side layout
+
+The access token moved from a card that stayed at the top of the page onto the
+start page, next to the safety and scope notes, so the dashboard has one way in.
+The FHIR resource viewer now sits beside the readings instead of below them.
+
+- Changed: the welcome dialog is now a start page with the notes and the token
+  field (hidden in demo mode); "I understand — connect" checks the token against
+  `GET /fhir/metadata` and says when it is not accepted
+- Added: a Home button on the app page disconnects, forgets the token and returns
+  to the start page; if the server stops accepting the token (for example it
+  restarted with a new one), the page returns there with that message instead of
+  retrying forever
+- Changed: the token is no longer kept between page loads, and the
+  acknowledgement is no longer remembered for the browser session; the start page
+  asks for both on each load
+- Changed: on screens 960 px and wider, the FHIR resources card is a right-hand
+  column beside the latest reading, chart and simulator, and stays in view while
+  the left column scrolls; narrower screens keep one column
+- Added: a "Demo mode: simulated data" badge in the app page header
+
 ## [2026-10-07] — Dashboard: welcome notes, device details, FHIR resource viewer
 
 The dashboard now shows the FHIR it receives. The safety and scope warnings moved

@@ -8,143 +8,158 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Security and scope disclaimers (FR-5, security-privacy.md). Shown as a
-       modal on first load; app.js connects only after "I understand". -->
-  <dialog class="welcome" id="welcome-dialog" aria-labelledby="welcome-heading">
-    <h2 id="welcome-heading">Before you use this</h2>
+  <!-- Start screen: the security and scope disclaimers (FR-5,
+       security-privacy.md) and the access token. app.js connects only after
+       "I understand", and the Home button brings the user back here. -->
+  <div class="view" id="home-view">
+    <header>
+      <h1>vitals-on-fhir</h1>
+      <p class="subtitle">Live vital signs as HL7 FHIR R4</p>
+    </header>
 
-    <p class="warning">
-      <strong>Open Bluetooth broadcast.</strong>
-      The standard Bluetooth Heart Rate Service is an unauthenticated channel.
-      When heart-rate broadcast is enabled on the device, any nearby Bluetooth
-      LE receiver can read the heart-rate stream. This is part of the Bluetooth
-      standard and cannot be changed by this software. Turn off heart-rate
-      broadcast on the device when you are not actively monitoring.
-    </p>
+    <main class="home">
+      <section class="card" aria-labelledby="home-heading">
+        <h2 id="home-heading">Before you use this</h2>
 
-    <p class="warning">
-      <strong>Research and educational use only.</strong>
-      vitals-on-fhir is a local proof-of-concept for healthcare interoperability.
-      It is not a medical device, is not HIPAA-compliant, and must not be used
-      with real patient data or for diagnosis, treatment, or any clinical
-      decision-making.
-    </p>
+        <p class="warning">
+          <strong>Open Bluetooth broadcast.</strong>
+          The standard Bluetooth Heart Rate Service is an unauthenticated channel.
+          When heart-rate broadcast is enabled on the device, any nearby Bluetooth
+          LE receiver can read the heart-rate stream. This is part of the Bluetooth
+          standard and cannot be changed by this software. Turn off heart-rate
+          broadcast on the device when you are not actively monitoring.
+        </p>
 
-    <div class="welcome-actions">
-      <button type="button" id="welcome-ack">I understand</button>
-    </div>
-  </dialog>
+        <p class="warning">
+          <strong>Research and educational use only.</strong>
+          vitals-on-fhir is a local proof-of-concept for healthcare interoperability.
+          It is not a medical device, is not HIPAA-compliant, and must not be used
+          with real patient data or for diagnosis, treatment, or any clinical
+          decision-making.
+        </p>
 
-  <header>
-    <h1>vitals-on-fhir</h1>
-    <p class="subtitle">Live heart-rate monitor</p>
-  </header>
+        <!-- In demo mode (no token set on the server) app.js shows this note
+             instead of the token field. -->
+        <p class="demo-note" id="demo-note" hidden>
+          <strong>Demo mode.</strong>
+          The server has no access token set, so this page shows simulated data only
+          and connects without one. Set <code>VOF_API_TOKEN</code> on the server to use
+          a real device.
+        </p>
 
-  <main>
-    <!-- Token entry: the token is used for the WebSocket connection. In demo
-         mode (no token set on the server) app.js shows the note instead. -->
-    <section class="card" aria-labelledby="connect-heading">
-      <h2 id="connect-heading">Connect</h2>
-      <p class="demo-note" id="demo-note" hidden>
-        <strong>Demo mode.</strong>
-        The server has no access token set, so this page shows simulated data only
-        and connects without one. Set <code>VOF_API_TOKEN</code> on the server to use
-        a real device.
-      </p>
-      <form id="connect-form" autocomplete="off">
-        <label for="token-input">Access token</label>
-        <input
-          type="password"
-          id="token-input"
-          name="token"
-          placeholder="Enter your access token"
-          autocomplete="off"
-          required
-        />
-        <button type="submit" id="connect-button">Connect</button>
-      </form>
-    </section>
+        <form class="connect-form" id="connect-form" autocomplete="off" novalidate>
+          <div class="token-field" id="token-field">
+            <label for="token-input">Access token</label>
+            <input
+              type="password"
+              id="token-input"
+              name="token"
+              placeholder="Enter your access token"
+              autocomplete="off"
+            />
+          </div>
+          <p class="form-error" id="connect-error" role="alert" hidden></p>
+          <button type="submit" id="connect-button">I understand — connect</button>
+        </form>
+      </section>
+    </main>
+  </div>
 
-    <!-- Live readings. Values are cleared while disconnected (FR-6). -->
-    <section class="card" id="reading-card" aria-labelledby="reading-heading">
-      <h2 id="reading-heading">Latest reading</h2>
+  <!-- App screen: live readings on the left, the FHIR behind them on the right. -->
+  <div class="view" id="app-view" hidden>
+    <header class="app-header">
+      <button type="button" class="secondary" id="home-button">Home</button>
+      <div class="app-title">
+        <h1>vitals-on-fhir</h1>
+        <p class="subtitle">Live heart-rate monitor</p>
+      </div>
+      <span class="badge" id="demo-badge" hidden>Demo mode: simulated data</span>
+    </header>
 
-      <div class="reading">
-        <span class="reading-value" id="hr-value" aria-live="polite">—</span>
-        <span class="reading-unit">beats per minute</span>
+    <main class="app">
+      <div class="app-main" id="app-main">
+        <!-- Live readings. Values are cleared while disconnected (FR-6). -->
+        <section class="card" id="reading-card" aria-labelledby="reading-heading">
+          <h2 id="reading-heading">Latest reading</h2>
+
+          <div class="reading">
+            <span class="reading-value" id="hr-value" aria-live="polite">—</span>
+            <span class="reading-unit">beats per minute</span>
+          </div>
+
+          <p class="timestamp">
+            Measured at:
+            <span id="hr-timestamp" aria-live="polite">No reading yet</span>
+          </p>
+
+          <!-- Filled from the FHIR Device that the readings reference (app.js). -->
+          <dl class="device-props" id="device-props" aria-label="Device" hidden></dl>
+
+          <p class="status-line">
+            Connection status:
+            <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
+          </p>
+
+          <!-- Shown when the device is connected but nothing valid has arrived for a while. -->
+          <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
+        </section>
+
+        <!-- Live trend of the last two minutes of readings; drawn by app.js. -->
+        <section class="card" aria-labelledby="chart-heading">
+          <h2 id="chart-heading">Heart rate, last 2 minutes</h2>
+          <div id="hr-chart" class="chart" role="img" aria-label="Live heart-rate chart"></div>
+          <dl class="chart-stats">
+            <div><dt>Lowest</dt><dd id="stat-min">—</dd></div>
+            <div><dt>Average</dt><dd id="stat-avg">—</dd></div>
+            <div><dt>Highest</dt><dd id="stat-max">—</dd></div>
+          </dl>
+        </section>
+
+        <!-- Mock-device simulator. Hidden unless the server runs --adapter mock (app.js). -->
+        <section class="card" id="sim-card" aria-labelledby="sim-heading" hidden>
+          <h2 id="sim-heading">Simulate a heart rhythm</h2>
+          <p class="sim-note">
+            Demo data from the mock device. Pick a scenario and press <strong>Simulate</strong>
+            to start it from the beginning; this clears the chart and the readings from the
+            previous scenario. These imitate how the heart <em>rate</em> behaves in each rhythm.
+            They are not an ECG and not a diagnosis.
+          </p>
+          <label for="sim-select">Scenario</label>
+          <div class="sim-row">
+            <select id="sim-select" class="sim-select"></select>
+            <button type="button" id="sim-start">Simulate</button>
+          </div>
+          <p class="sim-description" id="sim-description"></p>
+          <p class="status-line">
+            <span id="sim-status" role="status" aria-live="polite"></span>
+          </p>
+        </section>
       </div>
 
-      <p class="timestamp">
-        Measured at:
-        <span id="hr-timestamp" aria-live="polite">No reading yet</span>
-      </p>
-
-      <!-- Filled from the FHIR Device that the readings reference (app.js). -->
-      <dl class="device-props" id="device-props" aria-label="Device" hidden></dl>
-
-      <p class="status-line">
-        Connection status:
-        <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
-      </p>
-
-      <!-- Shown when the device is connected but nothing valid has arrived for a while. -->
-      <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
-    </section>
-
-    <!-- Live trend of the last two minutes of readings; drawn by app.js. -->
-    <section class="card" aria-labelledby="chart-heading">
-      <h2 id="chart-heading">Heart rate, last 2 minutes</h2>
-      <div id="hr-chart" class="chart" role="img" aria-label="Live heart-rate chart"></div>
-      <dl class="chart-stats">
-        <div><dt>Lowest</dt><dd id="stat-min">—</dd></div>
-        <div><dt>Average</dt><dd id="stat-avg">—</dd></div>
-        <div><dt>Highest</dt><dd id="stat-max">—</dd></div>
-      </dl>
-    </section>
-
-    <!-- Mock-device simulator. Hidden unless the server runs --adapter mock (app.js). -->
-    <section class="card" id="sim-card" aria-labelledby="sim-heading" hidden>
-      <h2 id="sim-heading">Simulate a heart rhythm</h2>
-      <p class="sim-note">
-        Demo data from the mock device. Pick a scenario and press <strong>Simulate</strong>
-        to start it from the beginning; this clears the chart and the readings from the
-        previous scenario. These imitate how the heart <em>rate</em> behaves in each rhythm.
-        They are not an ECG and not a diagnosis.
-      </p>
-      <label for="sim-select">Scenario</label>
-      <div class="sim-row">
-        <select id="sim-select" class="sim-select"></select>
-        <button type="button" id="sim-start">Simulate</button>
+      <div class="app-side" id="app-side">
+        <!-- The FHIR resources behind the readings, as the server sent them (app.js). -->
+        <section class="card fhir-card" id="fhir-card" aria-labelledby="fhir-heading">
+          <div class="card-head">
+            <h2 id="fhir-heading">FHIR resources</h2>
+            <button type="button" class="secondary" id="fhir-pause" aria-pressed="false">
+              Pause
+            </button>
+          </div>
+          <p class="fhir-note">
+            Each reading arrives as an HL7 FHIR R4 Observation, shown here exactly as the
+            server sent it. Values that changed since the previous reading are highlighted.
+            Select a <code>Patient/…</code> or <code>Device/…</code> reference to open that
+            resource.
+          </p>
+          <nav class="fhir-trail" id="fhir-trail" aria-label="Open resources"></nav>
+          <pre class="json" id="fhir-json" tabindex="0"
+               aria-label="FHIR resource as JSON">Waiting for the first resource…</pre>
+          <h3 class="fhir-recent-heading">Recent readings</h3>
+          <ol class="fhir-recent" id="fhir-recent"></ol>
+        </section>
       </div>
-      <p class="sim-description" id="sim-description"></p>
-      <p class="status-line">
-        <span id="sim-status" role="status" aria-live="polite"></span>
-      </p>
-    </section>
-
-    <!-- The FHIR resources behind the readings, as the server sent them (app.js). -->
-    <section class="card" id="fhir-card" aria-labelledby="fhir-heading">
-      <div class="card-head">
-        <h2 id="fhir-heading">FHIR resources</h2>
-        <button type="button" class="secondary" id="fhir-pause" aria-pressed="false">Pause</button>
-      </div>
-      <p class="fhir-note">
-        Each reading arrives as an HL7 FHIR R4 Observation, shown here exactly as the
-        server sent it. Values that changed since the previous reading are highlighted.
-        Select a <code>Patient/…</code> or <code>Device/…</code> reference to open that
-        resource.
-      </p>
-      <nav class="fhir-trail" id="fhir-trail" aria-label="Open resources"></nav>
-      <pre class="json" id="fhir-json" tabindex="0"
-           aria-label="FHIR resource as JSON">Waiting for the first resource…</pre>
-      <h3 class="fhir-recent-heading">Recent readings</h3>
-      <ol class="fhir-recent" id="fhir-recent"></ol>
-    </section>
-  </main>
-
-  <footer>
-    <button type="button" class="link" id="welcome-reopen">Safety and scope notes</button>
-  </footer>
+    </main>
+  </div>
 
   <script src="app.js"></script>
 </body>

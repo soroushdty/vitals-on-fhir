@@ -41,12 +41,106 @@ header h1 {
 }
 
 main {
-  max-width: 640px;
   margin: 0 auto;
   padding: 0 1rem 2rem;
+}
+
+/* Start screen: one column of notes and the token form. */
+main.home {
+  max-width: 640px;
+}
+
+/* App screen: readings on the left, the FHIR viewer on the right when there
+   is room; one column on narrow screens. */
+main.app {
+  max-width: 1240px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.app-main {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
+}
+
+.app-side {
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  main.app {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  }
+
+  /* Keep the viewer in sight while the left column scrolls, sized to the
+     window: the JSON takes whatever height is left. */
+  .app-side .fhir-card {
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .app-side .json {
+    flex: 1 1 auto;
+    min-height: 12rem;
+    max-height: none;
+  }
+
+  .app-side .fhir-recent {
+    flex: 0 0 auto;
+    max-height: 9rem;
+  }
+}
+
+/* App-screen header: Home on the left, the title in the middle, the demo
+   badge on the right. */
+.app-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.app-header #home-button {
+  justify-self: start;
+}
+
+.app-header .badge {
+  justify-self: end;
+}
+
+/* Narrow screens: Home and the badge share the top row; the title goes below. */
+@media (max-width: 599px) {
+  .app-header {
+    grid-template-columns: auto 1fr;
+    gap: 0.5rem;
+  }
+
+  .app-title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 999px;
+}
+
+.badge[hidden] {
+  display: none;
 }
 
 .card {
@@ -61,16 +155,41 @@ main {
   font-size: 1.15rem;
 }
 
-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: end;
+/* Start-screen notes and token form. */
+.home .warning {
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning-border);
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin: 0.75rem 0 0;
 }
 
-/* The display rule above would otherwise override the hidden attribute (demo mode). */
-form[hidden] {
+.home .demo-note {
+  margin-top: 1rem;
+}
+
+.connect-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.connect-form button[type="submit"] {
+  align-self: flex-end;
+}
+
+.token-field[hidden] {
   display: none;
+}
+
+.form-error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  color: var(--down);
+  background: #fdecea;
+  border-left: 4px solid var(--down);
+  border-radius: 4px;
 }
 
 label {
@@ -80,7 +199,7 @@ label {
 }
 
 input[type="password"] {
-  flex: 1 1 220px;
+  width: 100%;
   padding: 0.6rem 0.75rem;
   font-size: 1rem;
   border: 1px solid var(--border);
@@ -259,54 +378,6 @@ button:disabled {
   margin: 0.5rem 0 0;
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-/* Safety and scope notes, shown as a modal until acknowledged. */
-.welcome {
-  max-width: 560px;
-  width: calc(100% - 2rem);
-  padding: 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text);
-  background: var(--card-bg);
-}
-
-.welcome::backdrop {
-  background: rgba(20, 28, 36, 0.55);
-}
-
-.welcome h2 {
-  margin-top: 0;
-  font-size: 1.25rem;
-}
-
-.welcome .warning {
-  background: var(--warning-bg);
-  border-left: 4px solid var(--warning-border);
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  margin: 0.75rem 0 0;
-}
-
-.welcome-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 1.25rem;
-}
-
-footer {
-  text-align: center;
-  padding: 0 1rem 2rem;
-}
-
-button.link {
-  padding: 0;
-  font-size: 0.9rem;
-  font-weight: 400;
-  color: var(--accent);
-  background: none;
-  text-decoration: underline;
 }
 
 button.secondary {
