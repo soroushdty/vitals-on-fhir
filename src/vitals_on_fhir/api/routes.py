@@ -327,13 +327,15 @@ async def search_observations(
     date_from, date_to = _parse_date_param(date)
     sort_desc = sort == "-date"
 
+    # ``_count`` limits the page, not the match count: search without it so
+    # ``total`` counts every match, then cut the page from the same snapshot.
     matches = await store.search(
         code=loinc_code,
         date_from=date_from,
         date_to=date_to,
         sort_desc=sort_desc,
-        count=count,
     )
+    page = matches if count is None else matches[:count]
 
     base = str(request.base_url).rstrip("/")
     entries = [
@@ -341,7 +343,7 @@ async def search_observations(
             "fullUrl": f"{base}/fhir/Observation/{observation.id}",
             "resource": observation.model_dump(),
         }
-        for observation in matches
+        for observation in page
     ]
     bundle = Bundle.model_validate(
         {
