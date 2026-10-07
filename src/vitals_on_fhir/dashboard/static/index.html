@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>vitals-on-fhir — live heart rate</title>
+  <link rel="icon" href="logo.jpeg" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -13,8 +14,10 @@
        "I understand", and the Home button brings the user back here. -->
   <div class="view" id="home-view">
     <header>
-      <h1>vitals-on-fhir</h1>
-      <p class="subtitle">Live vital signs as HL7 FHIR R4</p>
+      <!-- The logo carries the name and the tagline; its alt text is the heading. -->
+      <h1 class="logo-heading">
+        <img class="logo" src="logo.jpeg" alt="vitals-on-fhir" width="613" height="638" />
+      </h1>
     </header>
 
     <main class="home">
@@ -70,8 +73,11 @@
     <header class="app-header">
       <button type="button" class="secondary" id="home-button">Home</button>
       <div class="app-title">
-        <h1>vitals-on-fhir</h1>
-        <p class="subtitle">Live heart-rate monitor</p>
+        <img class="logo-small" src="logo.jpeg" alt="" width="613" height="638" />
+        <div>
+          <h1>vitals-on-fhir</h1>
+          <p class="subtitle">Live heart-rate monitor</p>
+        </div>
       </div>
       <span class="badge" id="demo-badge" hidden>Demo mode: simulated data</span>
     </header>

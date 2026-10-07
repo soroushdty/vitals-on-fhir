@@ -145,3 +145,14 @@ def test_heart_rate_chart_is_a_scrolling_strip_with_10_second_ticks() -> None:
     assert ".chart-scroll {" in css
     assert "overflow-x: auto;" in css[css.index(".chart-scroll {") :]
     assert "app-main" in outline.ancestors["chart-latest"]
+
+
+def test_logo_is_shipped_and_every_reference_resolves() -> None:
+    """The page (start screen, app header, tab icon) and the README point at the shipped logo."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    readme = (_STATIC.parents[3] / "README.md").read_text(encoding="utf-8")
+
+    assert (_STATIC / "logo.jpeg").is_file()
+    assert html.count('src="logo.jpeg"') == 2
+    assert 'rel="icon" href="logo.jpeg"' in html
+    assert 'src="src/vitals_on_fhir/dashboard/static/logo.jpeg"' in readme
