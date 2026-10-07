@@ -33,9 +33,9 @@ With no `VOF_API_TOKEN` set, the service starts in **demo mode**: it runs the mo
 
 ### Using the MVP
 
-Once the service is running, open **`http://127.0.0.1:8000/`** in a browser. The page first shows its safety and scope notes; press **I understand** to continue (it asks again in a new browser session, and **Safety and scope notes** at the bottom reopens them). Enter your `VOF_API_TOKEN` (in demo mode the page connects without asking), and you'll see the live heart rate, the observation timestamp, the device it came from, and the connection status update in real time.
+Once the service is running, open **`http://127.0.0.1:8000/`** in a browser. The start page shows the safety and scope notes and asks for your `VOF_API_TOKEN` (in demo mode there is no token field). Press **I understand — connect**: the token is checked, and you'll see the live heart rate, the observation timestamp, the device it came from, and the connection status update in real time. **Home** disconnects and returns to the start page, for example to use a different token. The token is not stored, so a reload asks for it again.
 
-The **FHIR resources** card shows each reading as the FHIR Observation the server produced, with the values that changed since the previous reading highlighted. **Pause** holds the current resource while readings keep arriving, **Recent readings** lists the last 20, and selecting a `Patient/…` or `Device/…` reference opens that resource from the FHIR API.
+The **FHIR resources** card, beside the readings on a wide screen, shows each reading as the FHIR Observation the server produced, with the values that changed since the previous reading highlighted. **Pause** holds the current resource while readings keep arriving, **Recent readings** lists the last 20, and selecting a `Patient/…` or `Device/…` reference opens that resource from the FHIR API.
 
 With `--adapter mock` the dashboard also has a **Simulate a heart rhythm** panel with a dropdown of scenarios, grouped as:
 

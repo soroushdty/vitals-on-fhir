@@ -23,10 +23,12 @@
  * Readings are also drawn as a live two-minute line chart (plain SVG, no
  * libraries) with the lowest / average / highest value in view.
  *
- * On load the page first shows the safety and scope notes, which must be
- * acknowledged (once per browser session). It then asks GET /status whether a
- * token is needed. In demo mode (no token set on the server) it hides the
- * token form and connects at once.
+ * The page opens on a start screen with the safety and scope notes and the
+ * access token; nothing connects until "I understand". GET /status says
+ * whether a token is needed (in demo mode the token field is hidden), and the
+ * token is checked against GET /fhir/metadata before the app screen opens.
+ * The Home button disconnects, forgets the token and returns to the start
+ * screen. The token is never stored.
  *
  * Every Observation is also shown as JSON in the FHIR resources card, and the
  * Device it references is read from GET /fhir/Device/{id} and summarised under
@@ -91,9 +93,12 @@
     els.simStatus = document.getElementById("sim-status");
     els.readingNote = document.getElementById("reading-note");
     els.deviceProps = document.getElementById("device-props");
-    els.welcome = document.getElementById("welcome-dialog");
-    els.welcomeAck = document.getElementById("welcome-ack");
-    els.welcomeReopen = document.getElementById("welcome-reopen");
+    els.homeView = document.getElementById("home-view");
+    els.appView = document.getElementById("app-view");
+    els.homeButton = document.getElementById("home-button");
+    els.tokenField = document.getElementById("token-field");
+    els.connectError = document.getElementById("connect-error");
+    els.demoBadge = document.getElementById("demo-badge");
     els.fhirPause = document.getElementById("fhir-pause");
     els.fhirTrail = document.getElementById("fhir-trail");
     els.fhirJson = document.getElementById("fhir-json");
@@ -333,68 +338,6 @@
     markLive();
     drawChart();
     resetViewer();
-  }
-
-  // ---------------------------------------------------------------------
-  // Welcome notice: the safety and scope notes must be acknowledged before
-  // the page connects. The acknowledgement lasts for this browser session.
-  // ---------------------------------------------------------------------
-
-  var WELCOME_KEY = "vof-welcome-acknowledged";
-
-  function welcomeAcknowledged() {
-    try {
-      return window.sessionStorage.getItem(WELCOME_KEY) === "yes";
-    } catch (err) {
-      return false;
-    }
-  }
-
-  function openWelcome() {
-    if (els.welcome.open) {
-      return;
-    }
-    if (typeof els.welcome.showModal === "function") {
-      els.welcome.showModal();
-    } else {
-      els.welcome.setAttribute("open", "");
-    }
-  }
-
-  // Show the notes unless already acknowledged, then call *proceed* once.
-  function requireWelcome(proceed) {
-    var acknowledged = welcomeAcknowledged();
-    els.welcome.addEventListener("cancel", function (event) {
-      // Escape must not stand in for "I understand" the first time.
-      if (!acknowledged) {
-        event.preventDefault();
-      }
-    });
-    els.welcome.addEventListener("close", function () {
-      // Some browsers close a modal on a repeated Escape despite the above.
-      if (!acknowledged) {
-        openWelcome();
-      }
-    });
-    els.welcomeAck.addEventListener("click", function () {
-      var first = !acknowledged;
-      acknowledged = true;
-      try {
-        window.sessionStorage.setItem(WELCOME_KEY, "yes");
-      } catch (err) {
-        /* storage blocked: ask again next time */
-      }
-      els.welcome.close();
-      if (first) {
-        proceed();
-      }
-    });
-    els.welcomeReopen.addEventListener("click", openWelcome);
-    if (acknowledged) {
-      proceed();
-    } else {
-      openWelcome();
-    }
   }
 
   // ---------------------------------------------------------------------
@@ -894,9 +837,20 @@
       return;
     }
     // Automatic reconnect without user action or page reload (FR-6, FR-7).
+    // The token is checked first: the server rejects a WebSocket before
+    // accepting it, which the browser reports only as a dropped connection.
     reconnectTimer = window.setTimeout(function () {
       reconnectTimer = null;
-      openSocket(currentToken);
+      checkToken(currentToken).then(function (result) {
+        if (manualClose) {
+          return;
+        }
+        if (result === "rejected") {
+          goHome(TOKEN_REJECTED_LATER);
+        } else {
+          openSocket(currentToken);
+        }
+      });
     }, 3000);
   }
 
@@ -938,15 +892,57 @@
     });
   }
 
-  function onSubmit(event) {
-    event.preventDefault();
-    var token = els.tokenInput.value.trim();
-    if (!token) {
-      return;
-    }
-    currentToken = token;
+  // ---------------------------------------------------------------------
+  // Start screen and app screen. The start screen carries the safety and
+  // scope notes and the token; "I understand" checks the token and opens the
+  // app screen, and Home goes back, disconnecting and forgetting the token.
+  // The token is never stored.
+  // ---------------------------------------------------------------------
 
-    // Reset any existing connection before opening a new one.
+  var TOKEN_REJECTED = "That access token was not accepted. Check it and try again.";
+  var TOKEN_REJECTED_LATER =
+    "The server no longer accepts this access token. Enter the current one to reconnect.";
+
+  // Ask the API whether *token* is accepted: "ok", "rejected" or "unreachable".
+  // GET /fhir/metadata needs the token and returns a fixed document.
+  function checkToken(token) {
+    if (!authRequired) {
+      return Promise.resolve("ok");
+    }
+    return fetch("/fhir/metadata", { headers: { Authorization: "Bearer " + token } })
+      .then(function (response) {
+        if (response.ok) {
+          return "ok";
+        }
+        return response.status === 401 || response.status === 403 ? "rejected" : "unreachable";
+      })
+      .catch(function () {
+        return "unreachable";
+      });
+  }
+
+  function showConnectError(message) {
+    els.connectError.textContent = message;
+    els.connectError.hidden = !message;
+  }
+
+  function showView(view) {
+    els.homeView.hidden = view !== "home";
+    els.appView.hidden = view !== "app";
+    window.scrollTo(0, 0);
+  }
+
+  function enterApp(token) {
+    currentToken = token;
+    els.tokenInput.value = "";
+    showConnectError("");
+    showView("app");
+    openSocket(currentToken);
+    loadScenarios();
+  }
+
+  // Close the connection and clear everything the session showed.
+  function disconnect() {
     manualClose = true;
     if (reconnectTimer) {
       window.clearTimeout(reconnectTimer);
@@ -960,22 +956,63 @@
       }
       socket = null;
     }
-
-    openSocket(currentToken);
-    loadScenarios();
+    currentToken = "";
+    deviceLive = false;
+    deviceReference = null;
+    els.deviceProps.replaceChildren();
+    els.deviceProps.hidden = true;
+    els.simCard.hidden = true;
+    resetDisplay();
+    setStatus("Not connected", null);
   }
 
-  // Demo mode: the server needs no token, so skip the prompt and connect now.
-  function startDemo() {
+  function goHome(message) {
+    disconnect();
+    showView("home");
+    showConnectError(message || "");
+    (authRequired ? els.tokenInput : els.connectButton).focus();
+  }
+
+  function onSubmit(event) {
+    event.preventDefault();
+    showConnectError("");
+    if (!authRequired) {
+      enterApp("");
+      return;
+    }
+    var token = els.tokenInput.value.trim();
+    if (!token) {
+      showConnectError("Enter the access token (VOF_API_TOKEN) set on the server.");
+      els.tokenInput.focus();
+      return;
+    }
+    els.connectButton.disabled = true;
+    checkToken(token).then(function (result) {
+      els.connectButton.disabled = false;
+      if (result === "ok") {
+        enterApp(token);
+      } else if (result === "rejected") {
+        showConnectError(TOKEN_REJECTED);
+        els.tokenInput.select();
+      } else {
+        showConnectError("Could not reach the server. Is vitals-on-fhir running?");
+      }
+    });
+  }
+
+  // Demo mode: the server needs no token, so the start screen asks only for
+  // the acknowledgement.
+  function useDemoMode() {
     authRequired = false;
-    els.form.hidden = true;
+    els.tokenField.hidden = true;
+    els.tokenInput.disabled = true;
     els.demoNote.hidden = false;
-    openSocket("");
-    loadScenarios();
+    els.demoBadge.hidden = false;
+    els.connectButton.textContent = "I understand — start demo";
   }
 
   // Ask the server whether a token is needed. If it cannot say, keep the
-  // token prompt, which works either way.
+  // token field, which works either way.
   function checkAuthRequired() {
     fetch("/status")
       .then(function (response) {
@@ -983,25 +1020,28 @@
       })
       .then(function (data) {
         if (data && data.auth_required === false) {
-          startDemo();
+          useDemoMode();
         }
       })
       .catch(function () {
-        /* keep the token prompt */
+        /* keep the token field */
       });
   }
 
   function init() {
     cacheElements();
     els.form.addEventListener("submit", onSubmit);
+    els.homeButton.addEventListener("click", function () {
+      goHome("");
+    });
     els.simSelect.addEventListener("change", showSelectedDescription);
     els.simStart.addEventListener("click", startScenario);
     els.fhirPause.addEventListener("click", function () {
       setPaused(!viewer.paused);
     });
     drawChart();
-    // Connect only once the safety and scope notes are acknowledged.
-    requireWelcome(checkAuthRequired);
+    // Nothing connects until the start screen's "I understand".
+    checkAuthRequired();
     // Slide the window forward between readings (and across disconnects).
     window.setInterval(function () {
       drawChart();
