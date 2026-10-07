@@ -5,6 +5,23 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Dashboard: light and dark themes, repository link
+
+- Added: a Light / Dark switch at the top right of both screens. Until the user
+  chooses, the page follows the system's `prefers-color-scheme`; the choice is
+  stored in `localStorage` (the theme name only) and applied from `<head>` by the
+  new `theme.js`, so a reload does not flash the other theme
+- Added: a "GitHub ↗" link to the repository, opening in a new tab
+  (`rel="noopener noreferrer"`)
+- Changed: `style.css` defines a dark palette for every colour token; button
+  text, the error message and the token field now use tokens instead of fixed
+  colours
+- Changed: the logo has a transparent background, in two variants
+  (`logo-light.webp`, `logo-dark.webp`, the dark one with light lettering); the
+  page and the README show the one for the active theme. `logo.jpeg` is removed
+- Added: `tools/make_logo_variants.py`, which makes both variants from the
+  original artwork
+
 ## [2026-10-07] — Dashboard: scrolling heart-rate chart
 
 The "Heart rate, last 2 minutes" chart squeezed a fixed window into the card. It is

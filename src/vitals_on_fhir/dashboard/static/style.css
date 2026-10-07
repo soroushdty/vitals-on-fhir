@@ -1,16 +1,56 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
+/* Colour tokens. Light is the default; dark applies when the user picks it
+   (data-theme="dark", set by theme.js) or, with no pick, when the system
+   prefers dark. */
 :root {
+  color-scheme: light;
   --bg: #f4f6f8;
   --card-bg: #ffffff;
   --text: #1a1a1a;
   --muted: #555f6a;
   --accent: #0b6b5b;
+  --on-accent: #ffffff;
   --warning-bg: #fff8e1;
   --warning-border: #e0a800;
+  --error-bg: #fdecea;
   --border: #d8dee4;
   --ok: #0b6b5b;
   --down: #b23b2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f141a;
+    --card-bg: #171e26;
+    --text: #e6ebf0;
+    --muted: #a3afbb;
+    --accent: #4cc3a9;
+    --on-accent: #06231e;
+    --warning-bg: #33290f;
+    --warning-border: #d9a520;
+    --error-bg: #3a1a17;
+    --border: #2c3744;
+    --ok: #4cc3a9;
+    --down: #ff8a7a;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f141a;
+  --card-bg: #171e26;
+  --text: #e6ebf0;
+  --muted: #a3afbb;
+  --accent: #4cc3a9;
+  --on-accent: #06231e;
+  --warning-bg: #33290f;
+  --warning-border: #d9a520;
+  --error-bg: #3a1a17;
+  --border: #2c3744;
+  --ok: #4cc3a9;
+  --down: #ff8a7a;
 }
 
 * {
@@ -25,6 +65,53 @@ body {
   line-height: 1.5;
 }
 
+/* Toolbar at the top of both screens: theme switch and the repository link. */
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem 0;
+}
+
+.theme-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.theme-switch button {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card-bg);
+  border-radius: 0;
+}
+
+.theme-switch button[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.repo-link {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.repo-link:hover {
+  border-color: var(--accent);
+}
+
 header {
   padding: 1.5rem 1rem;
   text-align: center;
@@ -36,7 +123,8 @@ header h1 {
 }
 
 /* Logo: the full image on the start page, a small one beside the app title.
-   Rounded corners frame its own (off-white) background. */
+   Both have a transparent background; the dark variant has light lettering.
+   Show the variant for the active theme (same conditions as the dark tokens). */
 .logo-heading {
   margin: 0;
   line-height: 0;
@@ -45,7 +133,28 @@ header h1 {
 .logo {
   width: min(300px, 70vw);
   height: auto;
-  border-radius: 14px;
+}
+
+.for-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .for-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .for-dark {
+    display: inline;
+  }
+}
+
+:root[data-theme="dark"] .for-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .for-dark {
+  display: inline;
 }
 
 .app-title {
@@ -58,7 +167,6 @@ header h1 {
 .logo-small {
   width: 56px;
   height: auto;
-  border-radius: 8px;
 }
 
 .subtitle {
@@ -213,7 +321,7 @@ main.app {
   margin: 0;
   padding: 0.5rem 0.75rem;
   color: var(--down);
-  background: #fdecea;
+  background: var(--error-bg);
   border-left: 4px solid var(--down);
   border-radius: 4px;
 }
@@ -226,6 +334,8 @@ label {
 
 input[type="password"] {
   width: 100%;
+  color: var(--text);
+  background: var(--card-bg);
   padding: 0.6rem 0.75rem;
   font-size: 1rem;
   border: 1px solid var(--border);
@@ -236,7 +346,7 @@ button {
   padding: 0.6rem 1.25rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--accent);
   border: none;
   border-radius: 6px;

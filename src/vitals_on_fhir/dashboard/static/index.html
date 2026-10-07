@@ -5,18 +5,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>vitals-on-fhir — live heart rate</title>
-  <link rel="icon" href="logo.jpeg" />
+  <link rel="icon" href="logo-light.webp" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Applies a saved light/dark choice before the page is drawn. -->
+  <script src="theme.js"></script>
 </head>
 <body>
+  <!-- Theme switch and the repository link, on both screens (theme.js). -->
+  <nav class="toolbar" aria-label="Page options">
+    <div class="theme-switch" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+    </div>
+    <a
+      class="repo-link"
+      href="https://github.com/soroushdty/vitals-on-fhir"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="vitals-on-fhir on GitHub (opens in a new tab)"
+    >GitHub ↗</a>
+  </nav>
+
   <!-- Start screen: the security and scope disclaimers (FR-5,
        security-privacy.md) and the access token. app.js connects only after
        "I understand", and the Home button brings the user back here. -->
   <div class="view" id="home-view">
     <header>
-      <!-- The logo carries the name and the tagline; its alt text is the heading. -->
+      <!-- The logo carries the name and the tagline; its alt text is the heading.
+           style.css shows the variant for the active theme. -->
       <h1 class="logo-heading">
-        <img class="logo" src="logo.jpeg" alt="vitals-on-fhir" width="613" height="638" />
+        <img class="logo for-light" src="logo-light.webp" alt="vitals-on-fhir"
+             width="613" height="638" />
+        <img class="logo for-dark" src="logo-dark.webp" alt="vitals-on-fhir"
+             width="613" height="638" />
       </h1>
     </header>
 
@@ -73,7 +94,8 @@
     <header class="app-header">
       <button type="button" class="secondary" id="home-button">Home</button>
       <div class="app-title">
-        <img class="logo-small" src="logo.jpeg" alt="" width="613" height="638" />
+        <img class="logo-small for-light" src="logo-light.webp" alt="" width="613" height="638" />
+        <img class="logo-small for-dark" src="logo-dark.webp" alt="" width="613" height="638" />
         <div>
           <h1>vitals-on-fhir</h1>
           <p class="subtitle">Live heart-rate monitor</p>

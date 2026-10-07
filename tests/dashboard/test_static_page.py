@@ -104,6 +104,8 @@ def test_home_forgets_the_token_and_disconnects() -> None:
     assert "socket.close()" in disconnect
     assert "localStorage" not in script
     assert "sessionStorage" not in script
+    theme = (_STATIC / "theme.js").read_text(encoding="utf-8")
+    assert "token" not in theme.lower()
 
 
 def test_fhir_viewer_sits_beside_the_readings() -> None:
@@ -147,12 +149,79 @@ def test_heart_rate_chart_is_a_scrolling_strip_with_10_second_ticks() -> None:
     assert "app-main" in outline.ancestors["chart-latest"]
 
 
-def test_logo_is_shipped_and_every_reference_resolves() -> None:
-    """The page (start screen, app header, tab icon) and the README point at the shipped logo."""
+def _is_webp_with_alpha(path: Path) -> bool:
+    """A WebP whose header says it carries an alpha channel (no image library needed)."""
+    data = path.read_bytes()
+    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return False
+    chunk = data[12:16]
+    if chunk == b"VP8X":
+        return bool(data[20] & 0x10)  # the "alpha" flag
+    return chunk == b"VP8L" and bool(data[24] & 0x10)  # lossless: alpha_is_used bit
+
+
+def test_logo_variants_are_transparent_and_follow_the_theme() -> None:
+    """Light and dark logo variants ship with transparency; each spot shows the theme's one."""
     html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    css = (_STATIC / "style.css").read_text(encoding="utf-8")
     readme = (_STATIC.parents[3] / "README.md").read_text(encoding="utf-8")
 
-    assert (_STATIC / "logo.jpeg").is_file()
-    assert html.count('src="logo.jpeg"') == 2
-    assert 'rel="icon" href="logo.jpeg"' in html
-    assert 'src="src/vitals_on_fhir/dashboard/static/logo.jpeg"' in readme
+    for name in ("logo-light.webp", "logo-dark.webp"):
+        assert _is_webp_with_alpha(_STATIC / name), name
+    assert html.count('src="logo-light.webp"') == 2
+    assert html.count('src="logo-dark.webp"') == 2
+    assert html.count("for-light") == html.count("for-dark") == 2
+    assert 'rel="icon" href="logo-light.webp"' in html
+    assert ".for-dark {\n  display: none;" in css
+    assert ':root[data-theme="dark"] .for-light' in css
+    dark_source = (
+        '<source media="(prefers-color-scheme: dark)" '
+        'srcset="src/vitals_on_fhir/dashboard/static/logo-dark.webp" />'
+    )
+    assert dark_source in readme
+    assert 'src="src/vitals_on_fhir/dashboard/static/logo-light.webp"' in readme
+    assert "logo.jpeg" not in html + readme
+
+
+def test_toolbar_with_theme_switch_and_repo_link_is_on_both_screens() -> None:
+    """The theme switch and the GitHub link sit outside both screens, so each shows them."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    toolbar = html[html.index('<nav class="toolbar"') : html.index("</nav>")]
+
+    assert 'data-theme-choice="light"' in toolbar
+    assert 'data-theme-choice="dark"' in toolbar
+    assert 'href="https://github.com/soroushdty/vitals-on-fhir"' in toolbar
+    assert 'target="_blank"' in toolbar
+    assert 'rel="noopener noreferrer"' in toolbar
+    assert html.index('<nav class="toolbar"') < html.index('id="home-view"')
+
+
+def test_theme_script_runs_in_head_and_stores_only_the_theme() -> None:
+    """``theme.js`` loads before the body is drawn and writes nothing but the theme name."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    theme = (_STATIC / "theme.js").read_text(encoding="utf-8")
+
+    assert html.index('<script src="theme.js"></script>') < html.index("</head>")
+    assert theme.count("setItem(") == 1
+    assert "setItem(STORAGE_KEY, theme)" in theme
+    assert "Storage" not in _script()  # app.js keeps nothing, the token included
+
+
+def _tokens(block: str) -> set[str]:
+    return {
+        line.split(":")[0].strip() for line in block.splitlines() if line.strip().startswith("--")
+    }
+
+
+def test_dark_theme_defines_every_colour_token() -> None:
+    """Both dark rules (system preference and explicit choice) cover every light token."""
+    css = (_STATIC / "style.css").read_text(encoding="utf-8")
+
+    def block(selector: str) -> str:
+        start = css.index(selector)
+        return css[start : css.index("}", start)]
+
+    light = _tokens(block(":root {"))
+    assert light
+    assert _tokens(block(':root:not([data-theme="light"]) {')) == light
+    assert _tokens(block(':root[data-theme="dark"] {')) == light
