@@ -130,3 +130,14 @@ def test_device_details_sit_in_the_latest_reading_card() -> None:
     assert "reading-card" in outline.ancestors["device-props"]
     assert '"device-props"' in script
     assert '"/fhir/"' in script
+
+
+def test_logo_is_shipped_and_every_reference_resolves() -> None:
+    """The page (start screen, app header, tab icon) and the README point at the shipped logo."""
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    readme = (_STATIC.parents[3] / "README.md").read_text(encoding="utf-8")
+
+    assert (_STATIC / "logo.jpeg").is_file()
+    assert html.count('src="logo.jpeg"') == 2
+    assert 'rel="icon" href="logo.jpeg"' in html
+    assert 'src="src/vitals_on_fhir/dashboard/static/logo.jpeg"' in readme

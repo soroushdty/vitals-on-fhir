@@ -35,6 +35,32 @@ header h1 {
   font-size: 1.75rem;
 }
 
+/* Logo: the full image on the start page, a small one beside the app title.
+   Rounded corners frame its own (off-white) background. */
+.logo-heading {
+  margin: 0;
+  line-height: 0;
+}
+
+.logo {
+  width: min(300px, 70vw);
+  height: auto;
+  border-radius: 14px;
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.logo-small {
+  width: 56px;
+  height: auto;
+  border-radius: 8px;
+}
+
 .subtitle {
   margin: 0.25rem 0 0;
   color: var(--muted);
