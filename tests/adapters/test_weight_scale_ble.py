@@ -157,7 +157,7 @@ def test_connect_transitions_to_connected(fake_bleak: type[_FakeBleak]) -> None:
     """``connect()`` moves the adapter DISCONNECTED -> CONNECTING -> CONNECTED."""
     states: list[ConnectionState] = []
 
-    async def _record(state: ConnectionState) -> None:
+    async def _record(state: ConnectionState, reason: str | None = None) -> None:
         states.append(state)
 
     adapter = WeightScaleBleAdapter(on_state_change=_record)
@@ -229,7 +229,7 @@ def test_silence_between_readings_is_not_a_disconnection(
     """While connected, an interval with no reading keeps the state CONNECTED."""
     states: list[ConnectionState] = []
 
-    async def _record(state: ConnectionState) -> None:
+    async def _record(state: ConnectionState, reason: str | None = None) -> None:
         states.append(state)
 
     adapter = WeightScaleBleAdapter(on_state_change=_record)

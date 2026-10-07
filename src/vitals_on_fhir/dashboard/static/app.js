@@ -10,7 +10,8 @@
  *
  * Two envelope types are handled (see design section 10 / broadcaster.py):
  *   { "type": "observation", "resource": { ...FHIR Observation... } }
- *   { "type": "connection_state", "state": "<connected|disconnected|...>" }
+ *   { "type": "connection_state", "state": "<connected|disconnected|...>",
+ *     "reason": "<why not connected yet>" (only while the server retries) }
  *
  * While the device is disconnected the last reading is dimmed and no new
  * values are shown; presentation resumes automatically on reconnect (FR-6).
@@ -102,6 +103,7 @@
     els.simDescription = document.getElementById("sim-description");
     els.simStatus = document.getElementById("sim-status");
     els.readingNote = document.getElementById("reading-note");
+    els.connectionReason = document.getElementById("connection-reason");
     els.deviceProps = document.getElementById("device-props");
     els.homeView = document.getElementById("home-view");
     els.appView = document.getElementById("app-view");
@@ -364,6 +366,7 @@
     deviceLive = true;
     lastReadingAt = Date.now();
     setStatus(DEVICE_STATE_LABELS.connected, "connected");
+    showConnectionReason(null);
     updateSilenceNote();
 
     if (typeof value === "number" && isFinite(value)) {
@@ -377,9 +380,22 @@
     }
   }
 
-  function handleConnectionState(state) {
+  // Why the device is not connected yet, as the server reported it (or hide).
+  function showConnectionReason(reason) {
+    if (reason) {
+      els.connectionReason.textContent =
+        "Not connected yet: " + reason + ". The service keeps trying.";
+      els.connectionReason.hidden = false;
+    } else {
+      els.connectionReason.textContent = "";
+      els.connectionReason.hidden = true;
+    }
+  }
+
+  function handleConnectionState(state, reason) {
     var label = DEVICE_STATE_LABELS[state] || ("Device state: " + state);
     deviceLive = !!LIVE_STATES[state];
+    showConnectionReason(deviceLive ? null : reason);
     if (deviceLive) {
       // Start the silence countdown afresh after a (re)connect.
       lastReadingAt = Date.now();
@@ -792,7 +808,7 @@
     if (envelope.type === "observation") {
       handleObservation(envelope.resource);
     } else if (envelope.type === "connection_state") {
-      handleConnectionState(envelope.state);
+      handleConnectionState(envelope.state, envelope.reason);
     } else if (envelope.type === "reset") {
       resetDisplay();
     }
@@ -1035,6 +1051,7 @@
     els.simCard.hidden = true;
     resetDisplay();
     setStatus("Not connected", null);
+    showConnectionReason(null);
   }
 
   function goHome(message) {

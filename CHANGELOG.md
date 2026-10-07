@@ -5,6 +5,27 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-07] — Say why the device is not connected, on the dashboard
+
+The service already logged why each connection attempt failed, but the dashboard
+only said "Connecting to the device…". The reason now reaches the dashboard, and
+the docs say what to do about each one.
+
+- Added: `adapters.StateCallback`, the type of the `on_state_change` callback,
+  now `(state, reason=None)`. `reason` says why the device is not connected yet;
+  adapters may still pass the state alone. It replaces the repeated
+  `Callable[[ConnectionState], Awaitable[None]]` annotations
+- Changed: `BleConnection` reports the current state again with the reason after
+  each failed attempt; the not-found reason suggests switching the device's
+  broadcast off and on again
+- Changed: the `connection_state` WebSocket envelope has an optional `reason`,
+  replayed to clients that connect later; `DashboardBroadcaster.on_state_change`
+  takes it
+- Added: the dashboard shows the reason under the connection status until the
+  device connects
+- Added: a troubleshooting section in `docs/device-compatibility.md`, and a
+  pointer to it in the README's Mi Band steps
+
 ## [2026-10-07] — Dashboard: light and dark themes, repository link
 
 - Added: a Light / Dark switch at the top right of both screens. Until the user

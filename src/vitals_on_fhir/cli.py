@@ -50,7 +50,6 @@ import uvicorn
 from vitals_on_fhir import dashboard as _dashboard
 from vitals_on_fhir.adapters import (
     BloodPressureBleAdapter,
-    ConnectionState,
     DeviceAdapter,
     HealthThermometerBleAdapter,
     HeartRateScenario,
@@ -62,6 +61,7 @@ from vitals_on_fhir.adapters import (
     MockThermometerAdapter,
     MockWeightAdapter,
     PulseOximeterBleAdapter,
+    StateCallback,
     WeightScaleBleAdapter,
 )
 from vitals_on_fhir.api import (
@@ -141,7 +141,7 @@ def _resolve_adapter(
     adapter_spec: str,
     settings: Settings,
     tz: tzinfo | None = None,
-    on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+    on_state_change: StateCallback | None = None,
     on_restart: Callable[[], Awaitable[None]] | None = None,
 ) -> DeviceAdapter:
     """Resolve *adapter_spec* to an instantiated :class:`DeviceAdapter`.
@@ -328,7 +328,7 @@ def _build_orchestrator(
     patient_ref: str,
     device_ref: str,
     sinks: list[ObservationSink],
-    state_relay: Callable[[ConnectionState], Awaitable[None]],
+    state_relay: StateCallback,
 ) -> Orchestrator:
     """Assemble the validator chain and construct the orchestrator.
 

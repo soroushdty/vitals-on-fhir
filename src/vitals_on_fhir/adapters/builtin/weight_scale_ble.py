@@ -21,10 +21,10 @@ phase-3 phone-aggregator path (see ``docs/roadmap.md``).
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, ClassVar
 
-from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter, StateCallback
 from vitals_on_fhir.adapters.ble import BleConnection, GattCharacteristicParser
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 from vitals_on_fhir.vitals.builtin.body_weight import BodyWeight
@@ -54,7 +54,7 @@ class WeightScaleBleAdapter(DeviceAdapter):
         self,
         *,
         device_name: str | None = None,
-        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_state_change: StateCallback | None = None,
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
         device_user_id: int | None = None,

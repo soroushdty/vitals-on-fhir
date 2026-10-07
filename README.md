@@ -60,7 +60,7 @@ Pick a scenario and press **Simulate**: it starts from the beginning and clears 
 uv run vitals-on-fhir --adapter miband10
 ```
 
-Until the band is found, the service keeps looking and logs why each attempt failed, for example which devices it saw and whether `VOF_DEVICE_NAME` excluded them.
+Until the band is found, the service keeps looking and says why each attempt failed, in the terminal and on the dashboard: for example which devices it saw and whether `VOF_DEVICE_NAME` excluded them. If the band can't be found even though its broadcast is on, switch the broadcast off and on again; see [Troubleshooting](docs/device-compatibility.md#troubleshooting-the-device-is-not-found) for more.
 
 **Run with a third-party adapter** by passing its fully qualified class path:
 

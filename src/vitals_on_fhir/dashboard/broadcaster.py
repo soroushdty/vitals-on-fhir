@@ -10,7 +10,8 @@ show disconnection and reconnection in real time.
 Two WebSocket message envelopes are emitted (see design §10 / Data Models):
 
 - ``{"type": "observation", "resource": {...full FHIR Observation...}}``
-- ``{"type": "connection_state", "state": "<state>"}``
+- ``{"type": "connection_state", "state": "<state>"}``, with ``"reason"`` (why
+  the device is not connected yet) while an adapter keeps retrying
 - ``{"type": "reset"}`` — a new simulated session started; clients drop
   everything they have shown so far.
 
@@ -80,9 +81,16 @@ def _state_value(state: object) -> str:
     return str(state)
 
 
-def _state_envelope(state: str) -> str:
-    """Return the serialised ``connection_state`` envelope for *state*."""
-    return json.dumps({"type": "connection_state", "state": state})
+def _state_envelope(state: str, reason: str | None = None) -> str:
+    """Return the serialised ``connection_state`` envelope for *state*.
+
+    A *reason* (why the device is not connected yet) is included only when
+    given.
+    """
+    envelope = {"type": "connection_state", "state": state}
+    if reason:
+        envelope["reason"] = reason
+    return json.dumps(envelope)
 
 
 class DashboardBroadcaster(ObservationSink):
@@ -107,6 +115,7 @@ class DashboardBroadcaster(ObservationSink):
         self._connections: set[WebSocketLike] = set()
         self._lock = asyncio.Lock()
         self._last_state: str | None = None
+        self._last_reason: str | None = None
 
     async def register(self, websocket: WebSocketLike) -> None:
         """Add an already-authenticated *websocket* to the active set.
@@ -124,10 +133,11 @@ class DashboardBroadcaster(ObservationSink):
         async with self._lock:
             self._connections.add(websocket)
             last_state = self._last_state
+            last_reason = self._last_reason
         logger.info("Dashboard client registered; active clients: %d", len(self._connections))
         if last_state is not None:
             try:
-                await websocket.send_text(_state_envelope(last_state))
+                await websocket.send_text(_state_envelope(last_state, last_reason))
             except Exception:
                 logger.info("Dropping dashboard client after send failure", exc_info=True)
                 await self.unregister(websocket)
@@ -163,19 +173,24 @@ class DashboardBroadcaster(ObservationSink):
         envelope = '{"type": "observation", "resource": ' + resource_json + "}"
         await self._broadcast(envelope)
 
-    async def on_state_change(self, state: object) -> None:
+    async def on_state_change(self, state: object, reason: str | None = None) -> None:
         """Push a ``connection_state`` envelope to all clients.
 
         Relayed by the orchestrator (via an injected callback) when the
         adapter's connection state changes, so the dashboard can show
-        disconnection and resume on reconnect (FR-6, FR-10).  Never raises.
+        disconnection and resume on reconnect (FR-6, FR-10).  The state and
+        reason are also kept for clients that connect later.  Never raises.
 
         Args:
             state: The new connection state.  Accepted structurally so the
                 dashboard need not import the adapter's ``ConnectionState``.
+            reason: Why the device is not connected yet, shown to the user
+                while the adapter keeps retrying; ``None`` when there is
+                nothing to explain.
         """
         self._last_state = _state_value(state)
-        await self._broadcast(_state_envelope(self._last_state))
+        self._last_reason = reason
+        await self._broadcast(_state_envelope(self._last_state, reason))
 
     async def reset(self) -> None:
         """Tell every client to clear what it is showing and start afresh.

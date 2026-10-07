@@ -2,7 +2,8 @@
 """Device adapter ABC and connection-state enum.
 
 This module defines the abstract interface all device adapters must satisfy,
-plus the ``ConnectionState`` enum used to track BLE lifecycle transitions.
+plus the ``ConnectionState`` enum used to track BLE lifecycle transitions and
+the ``StateCallback`` type through which adapters report them.
 It depends only on the Python standard library and the ``vitals`` package.
 """
 
@@ -10,8 +11,8 @@ from __future__ import annotations
 
 import abc
 import enum
-from collections.abc import AsyncIterator
-from typing import ClassVar
+from collections.abc import AsyncIterator, Awaitable
+from typing import ClassVar, Protocol
 
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 
@@ -23,6 +24,21 @@ class ConnectionState(enum.Enum):
     CONNECTING = "connecting"
     CONNECTED = "connected"
     RECONNECTING = "reconnecting"
+
+
+class StateCallback(Protocol):
+    """Async callback an adapter calls on every connection-state change.
+
+    ``reason`` says, in words a user can act on, why the device is not
+    connected yet, for example that no matching device was found and what to
+    check. It is given while an adapter keeps retrying and is ``None`` when
+    there is nothing to explain. Adapters may call the callback with the
+    state alone.
+    """
+
+    def __call__(self, state: ConnectionState, /, reason: str | None = None) -> Awaitable[None]:
+        """Report *state*, with an optional *reason* it is not connected yet."""
+        ...
 
 
 class DeviceAdapter(abc.ABC):

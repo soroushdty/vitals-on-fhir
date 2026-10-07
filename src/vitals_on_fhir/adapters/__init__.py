@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Public API for the ``adapters`` package — device connectivity and payload parsing."""
 
-from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter, StateCallback
 from vitals_on_fhir.adapters.ble import (
     BleConnection,
     BleHeartRateAdapter,
@@ -33,6 +33,7 @@ __all__ = [
     # ABCs
     "ConnectionState",
     "DeviceAdapter",
+    "StateCallback",
     "GattCharacteristicParser",
     "BleHeartRateAdapter",
     # Reusable building blocks
