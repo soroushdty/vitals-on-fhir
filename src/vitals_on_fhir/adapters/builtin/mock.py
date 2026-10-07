@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar
 
-from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter, StateCallback
 from vitals_on_fhir.adapters.builtin.hr_scenarios import (
     HeartRateScenario,
     ScenarioEngine,
@@ -75,7 +75,7 @@ class MockAdapter(DeviceAdapter):
         count: int | None = None,
         scenario: HeartRateScenario | None = None,
         rng: random.Random | None = None,
-        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_state_change: StateCallback | None = None,
         on_restart: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Create a mock adapter.

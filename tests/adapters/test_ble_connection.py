@@ -135,7 +135,7 @@ def _make_connection(
 ) -> BleConnection:
     """Build a ``BleConnection`` that records every state transition into ``states``."""
 
-    async def _record(state: ConnectionState) -> None:
+    async def _record(state: ConnectionState, reason: str | None = None) -> None:
         states.append(state)
 
     return BleConnection(
@@ -272,11 +272,21 @@ def no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ble_module, "_BACKOFF_INITIAL", 0.0)
 
 
-def _filtered_connection(device_name: str | None, states: list[ConnectionState]) -> BleConnection:
-    """Build a ``BleConnection`` with a name filter and an accept-all ``matches``."""
+def _filtered_connection(
+    device_name: str | None,
+    states: list[ConnectionState],
+    reasons: list[str | None] | None = None,
+) -> BleConnection:
+    """Build a ``BleConnection`` with a name filter and an accept-all ``matches``.
 
-    async def _record(state: ConnectionState) -> None:
+    Every state goes into *states*; with *reasons*, the reason given alongside
+    it (``None`` if none) goes there too.
+    """
+
+    async def _record(state: ConnectionState, reason: str | None = None) -> None:
         states.append(state)
+        if reasons is not None:
+            reasons.append(reason)
 
     return BleConnection(
         service_uuid=_SERVICE_UUID,
@@ -308,11 +318,16 @@ def test_name_filter_matches_part_of_the_name_ignoring_case(
 def test_device_not_found_is_retried_until_it_appears(
     fake_bleak: type[_FakeBleak], monkeypatch: pytest.MonkeyPatch, no_backoff: None
 ) -> None:
-    """A scan that finds nothing is retried; the state stays CONNECTING until it connects."""
+    """A scan that finds nothing is retried; the state stays CONNECTING until it connects.
+
+    Each failed attempt reports CONNECTING again with the reason, for the
+    dashboard; connecting and disconnecting carry none.
+    """
     scanner = _scanner_returning([], [], [_NamedDevice("HR strap")])
     monkeypatch.setattr(fake_bleak, "BleakScanner", scanner)
     states: list[ConnectionState] = []
-    conn = _filtered_connection(None, states)
+    reasons: list[str | None] = []
+    conn = _filtered_connection(None, states, reasons)
 
     async def scenario() -> None:
         await conn.connect()
@@ -322,9 +337,16 @@ def test_device_not_found_is_retried_until_it_appears(
     assert scanner.calls == 3
     assert states == [
         ConnectionState.CONNECTING,
+        ConnectionState.CONNECTING,
+        ConnectionState.CONNECTING,
         ConnectionState.CONNECTED,
         ConnectionState.DISCONNECTED,
     ]
+    assert reasons[0] is None
+    assert reasons[1] == reasons[2]
+    assert reasons[1] is not None and "no device with service 0x180D found" in reasons[1]
+    assert "switching its broadcast off and on again can help" in reasons[1]
+    assert reasons[3:] == [None, None]
 
 
 def test_not_found_warning_names_the_devices_the_filter_excluded(

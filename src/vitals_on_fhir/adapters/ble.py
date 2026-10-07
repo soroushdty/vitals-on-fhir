@@ -25,10 +25,10 @@ import abc
 import asyncio
 import logging
 import sys
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter, StateCallback
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 
 if TYPE_CHECKING:
@@ -99,7 +99,7 @@ class BleConnection:
         matches: Callable[[object], bool],
         parser_factory: Callable[[], GattCharacteristicParser],
         device_name: str | None = None,
-        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_state_change: StateCallback | None = None,
     ) -> None:
         """Create a BLE connection lifecycle.
 
@@ -174,6 +174,8 @@ class BleConnection:
                     return
                 reason = str(exc) or type(exc).__name__
                 logger.warning("BLE device not connected: %s. Retrying in %.0fs.", reason, backoff)
+                # Same state, now with the reason, so the dashboard can say why.
+                await self._set_state(self._state, reason)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * _BACKOFF_FACTOR, _BACKOFF_MAX)
             else:
@@ -251,7 +253,8 @@ class BleConnection:
         if not seen:
             return (
                 f"no device with service {service} found; check that it is on, in range "
-                "and broadcasting, and not connected to a phone or another app"
+                "and broadcasting (switching its broadcast off and on again can help), "
+                "and not connected to a phone or another app"
             )
         names = sorted({str(getattr(d, "name", None) or "(unnamed)") for d in seen})
         reason = (
@@ -350,11 +353,19 @@ class BleConnection:
         await self._set_state(ConnectionState.DISCONNECTED)
         logger.info("disconnected from BLE device")
 
-    async def _set_state(self, state: ConnectionState) -> None:
-        """Update the connection state and invoke the injected state callback."""
+    async def _set_state(self, state: ConnectionState, reason: str | None = None) -> None:
+        """Update the connection state and invoke the injected state callback.
+
+        *reason* (why the device is not connected yet) is passed on only when
+        given, so a callback that takes just the state still works.
+        """
         self._state = state
-        if self._on_state_change is not None:
+        if self._on_state_change is None:
+            return
+        if reason is None:
             await self._on_state_change(state)
+        else:
+            await self._on_state_change(state, reason)
 
 
 class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
@@ -377,7 +388,7 @@ class BleHeartRateAdapter(DeviceAdapter, abc.ABC):
         self,
         *,
         device_name: str | None = None,
-        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_state_change: StateCallback | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         """Initialize the BLE adapter, composing a Heart Rate Service lifecycle.

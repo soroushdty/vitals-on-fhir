@@ -128,6 +128,9 @@
             <strong id="connection-status" role="status" aria-live="polite">Not connected</strong>
           </p>
 
+          <!-- While the service keeps looking for the device: why it is not connected yet. -->
+          <p class="reading-note" id="connection-reason" role="status" aria-live="polite" hidden></p>
+
           <!-- Shown when the device is connected but nothing valid has arrived for a while. -->
           <p class="reading-note" id="reading-note" role="status" aria-live="polite" hidden></p>
         </section>

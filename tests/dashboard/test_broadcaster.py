@@ -248,3 +248,31 @@ def test_reset_tells_every_client_to_start_over() -> None:
 
     for messages in (first, second):
         assert [json.loads(m)["type"] for m in messages] == ["observation", "reset", "observation"]
+
+
+def test_state_change_carries_the_reason_and_replays_it() -> None:
+    """A reason travels with the state, and a client connecting later gets both.
+
+    Without a reason the envelope has no ``reason`` key, so a reconnect clears
+    what the dashboard was showing.
+    """
+
+    async def scenario() -> tuple[list[str], list[str]]:
+        broadcaster = DashboardBroadcaster()
+        early = FakeWebSocket()
+        await broadcaster.register(early)
+        await broadcaster.on_state_change("connecting", "no device with service 0x180D found")
+        late = FakeWebSocket()
+        await broadcaster.register(late)
+        await broadcaster.on_state_change("connected")
+        return early.messages, late.messages
+
+    early, late = asyncio.run(scenario())
+
+    assert json.loads(early[0]) == {
+        "type": "connection_state",
+        "state": "connecting",
+        "reason": "no device with service 0x180D found",
+    }
+    assert json.loads(late[0])["reason"] == "no device with service 0x180D found"
+    assert json.loads(early[1]) == {"type": "connection_state", "state": "connected"}

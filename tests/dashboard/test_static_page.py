@@ -225,3 +225,13 @@ def test_dark_theme_defines_every_colour_token() -> None:
     assert light
     assert _tokens(block(':root:not([data-theme="light"]) {')) == light
     assert _tokens(block(':root[data-theme="dark"] {')) == light
+
+
+def test_connection_reason_is_shown_under_the_status() -> None:
+    """The reason the server gives for not being connected appears in the reading card."""
+    outline = _outline()
+    script = _script()
+
+    assert "reading-card" in outline.ancestors["connection-reason"]
+    assert "handleConnectionState(envelope.state, envelope.reason)" in script
+    assert '"connection-reason"' in script

@@ -18,10 +18,10 @@ neutral standard profile, so any conforming thermometer is supported.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, ClassVar
 
-from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
+from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter, StateCallback
 from vitals_on_fhir.adapters.ble import BleConnection, GattCharacteristicParser
 from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 from vitals_on_fhir.vitals.builtin.body_temperature import BodyTemperature
@@ -52,7 +52,7 @@ class HealthThermometerBleAdapter(DeviceAdapter):
         self,
         *,
         device_name: str | None = None,
-        on_state_change: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        on_state_change: StateCallback | None = None,
         now: Callable[[], datetime] | None = None,
         tz: tzinfo | None = None,
     ) -> None:

@@ -24,9 +24,8 @@ from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.validation.base import ValidatorChain
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
 
-    from vitals_on_fhir.adapters.base import ConnectionState
+    from vitals_on_fhir.adapters.base import StateCallback
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class Orchestrator:
         *,
         patient_ref: str,
         device_ref: str,
-        state_relay: Callable[[ConnectionState], Awaitable[None]] | None = None,
+        state_relay: StateCallback | None = None,
     ) -> None:
         self._adapter = adapter
         self._validator_chain = validator_chain
