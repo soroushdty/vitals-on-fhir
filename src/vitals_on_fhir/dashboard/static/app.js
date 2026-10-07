@@ -20,8 +20,11 @@
  * scenario from the beginning. A third envelope, { "type": "reset" }, then
  * tells every open page to clear its chart and readings.
  *
- * Readings are also drawn as a live two-minute line chart (plain SVG, no
- * libraries) with the lowest / average / highest value in view.
+ * Readings are also drawn as a live strip chart (plain SVG, no libraries): a
+ * fixed time scale with a gridline every 10 seconds, counted from the first
+ * reading, that grows to the right and scrolls sideways. It follows the latest
+ * reading unless the user has scrolled back. Below it are the lowest, average
+ * and highest values kept (up to 30 minutes).
  *
  * The page opens on a start screen with the safety and scope notes and the
  * access token; nothing connects until "I understand". GET /status says
@@ -50,18 +53,24 @@
   // we stop showing new values until the device reconnects (FR-6).
   var LIVE_STATES = { connected: true };
 
-  // Live chart: how much history is shown, and the SVG geometry (viewBox units).
-  var CHART_WINDOW_MS = 2 * 60 * 1000;
+  // Live chart: a strip at a fixed time scale that grows to the right and
+  // scrolls sideways, with the bpm axis fixed on the left (sizes in CSS px).
   var CHART_REFRESH_MS = 1000;
-  var CHART_W = 600;
   var CHART_H = 220;
-  var CHART_PAD = { left: 38, right: 12, top: 12, bottom: 24 };
+  var CHART_PAD = { top: 12, bottom: 24, left: 8, right: 16 };
+  var CHART_AXIS_W = 40;
+  var CHART_PX_PER_S = 6; // so the 10 s gridlines are 60 px apart
+  var CHART_TICK_S = 10;
+  var CHART_KEEP_MS = 30 * 60 * 1000; // older readings are dropped
+  var CHART_GAP_MS = 5000; // a longer silence breaks the line
+  var CHART_FOLLOW_SLACK = 8; // px from the right edge that still counts as "at latest"
   var SVG_NS = "http://www.w3.org/2000/svg";
 
   // Connected but no valid reading for this long: tell the user (e.g. sensor off).
   var SILENCE_MS = 8000;
 
   var history = []; // [{ t: epoch ms, v: bpm }], oldest first
+  var sessionStart = null; // epoch ms of the session's first reading: "0 s" on the chart
   var scenarioOptions = []; // [{ id, label, description, group }] from /mock/scenarios
   var deviceLive = false; // true while the device is reported connected
   var lastReadingAt = null; // epoch ms of the latest valid reading, or null
@@ -83,6 +92,7 @@
     els.reading = document.querySelector(".reading");
     els.connectionStatus = document.getElementById("connection-status");
     els.chart = document.getElementById("hr-chart");
+    els.chartLatest = document.getElementById("chart-latest");
     els.statMin = document.getElementById("stat-min");
     els.statAvg = document.getElementById("stat-avg");
     els.statMax = document.getElementById("stat-max");
@@ -164,77 +174,129 @@
     return { lo: lo, hi: hi };
   }
 
+  // Build the chart's fixed bpm axis and its scrolling plot area once, so
+  // redrawing every second keeps the reader's scroll position.
+  function initChart() {
+    els.chartAxis = document.createElement("div");
+    els.chartAxis.className = "chart-axis";
+    els.chartScroll = document.createElement("div");
+    els.chartScroll.className = "chart-scroll";
+    els.chart.replaceChildren(els.chartAxis, els.chartScroll);
+    els.chartScroll.addEventListener("scroll", updateLatestButton);
+    els.chartLatest.addEventListener("click", function () {
+      scrollChartToLatest();
+      updateLatestButton();
+    });
+  }
+
+  // True when the plot is scrolled to its right edge (or does not scroll).
+  function chartFollowsLatest() {
+    var box = els.chartScroll;
+    return box.scrollWidth - box.clientWidth - box.scrollLeft <= CHART_FOLLOW_SLACK;
+  }
+
+  function scrollChartToLatest() {
+    els.chartScroll.scrollLeft = els.chartScroll.scrollWidth;
+  }
+
+  function updateLatestButton() {
+    els.chartLatest.hidden = chartFollowsLatest();
+  }
+
   function drawChart() {
-    if (!els.chart) {
+    if (!els.chartScroll) {
       return;
     }
     var now = Date.now();
-    var start = now - CHART_WINDOW_MS;
     history = history.filter(function (p) {
-      return p.t >= start;
+      return p.t >= now - CHART_KEEP_MS;
     });
-
-    var plotW = CHART_W - CHART_PAD.left - CHART_PAD.right;
+    var following = chartFollowsLatest();
+    var visibleW = els.chartScroll.clientWidth || 480;
     var plotH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
     var range = chartRange(history);
-    function x(t) {
-      return CHART_PAD.left + ((t - start) / CHART_WINDOW_MS) * plotW;
-    }
     function y(v) {
       return CHART_PAD.top + (1 - (v - range.lo) / (range.hi - range.lo)) * plotH;
     }
 
-    var svg = svgEl("svg", {
-      viewBox: "0 0 " + CHART_W + " " + CHART_H,
-      "aria-hidden": "true",
-    });
+    // The strip starts at the 10 s tick at or before the oldest reading kept
+    // and runs to now; it fills at least the visible width.
+    var hasData = history.length > 0 && sessionStart !== null;
+    var firstTick = 0;
+    var start = now;
+    var end = now;
+    if (hasData) {
+      firstTick = Math.floor((history[0].t - sessionStart) / 1000 / CHART_TICK_S) * CHART_TICK_S;
+      start = sessionStart + firstTick * 1000;
+      end = Math.max(now, history[history.length - 1].t);
+    }
+    function x(t) {
+      return CHART_PAD.left + ((t - start) / 1000) * CHART_PX_PER_S;
+    }
+    var width = Math.max(visibleW, Math.ceil(x(end)) + CHART_PAD.right);
 
-    // Horizontal gridlines with a bpm label each.
+    var plot = svgEl("svg", { width: width, height: CHART_H, "aria-hidden": "true" });
+    var axis = svgEl("svg", { width: CHART_AXIS_W, height: CHART_H, "aria-hidden": "true" });
+
+    // Horizontal gridlines across the strip; their bpm labels on the fixed axis.
     var step = (range.hi - range.lo) / 4;
     for (var i = 0; i <= 4; i++) {
       var v = range.lo + step * i;
-      svg.appendChild(
-        svgEl("line", { class: "grid", x1: CHART_PAD.left, x2: CHART_W - CHART_PAD.right, y1: y(v), y2: y(v) })
-      );
+      plot.appendChild(svgEl("line", { class: "grid", x1: 0, x2: width, y1: y(v), y2: y(v) }));
       var label = svgEl("text", {
         class: "axis-label",
-        x: CHART_PAD.left - 6,
+        x: CHART_AXIS_W - 6,
         y: y(v) + 4,
         "text-anchor": "end",
       });
       label.textContent = String(Math.round(v));
-      svg.appendChild(label);
+      axis.appendChild(label);
     }
 
-    // Time axis: the window start and "now".
-    var startLabel = svgEl("text", { class: "axis-label", x: CHART_PAD.left, y: CHART_H - 6 });
-    startLabel.textContent = "2 min ago";
-    svg.appendChild(startLabel);
-    var nowLabel = svgEl("text", {
-      class: "axis-label",
-      x: CHART_W - CHART_PAD.right,
-      y: CHART_H - 6,
-      "text-anchor": "end",
-    });
-    nowLabel.textContent = "now";
-    svg.appendChild(nowLabel);
-
-    if (history.length === 0) {
-      var empty = svgEl("text", { class: "empty-label", x: CHART_W / 2, y: CHART_H / 2 });
+    if (!hasData) {
+      var empty = svgEl("text", { class: "empty-label", x: visibleW / 2, y: CHART_H / 2 });
       empty.textContent = "Waiting for readings…";
-      svg.appendChild(empty);
+      plot.appendChild(empty);
     } else {
+      // Vertical gridline and label every 10 s, counted from the first reading.
+      var lastTick = Math.floor((end - sessionStart) / 1000 / CHART_TICK_S) * CHART_TICK_S;
+      for (var sec = firstTick; sec <= lastTick; sec += CHART_TICK_S) {
+        var tx = x(sessionStart + sec * 1000);
+        plot.appendChild(svgEl("line", {
+          class: "grid grid-time",
+          x1: tx,
+          x2: tx,
+          y1: CHART_PAD.top,
+          y2: CHART_H - CHART_PAD.bottom,
+        }));
+        var tick = svgEl("text", {
+          class: "axis-label",
+          x: tx,
+          y: CHART_H - 6,
+          "text-anchor": tx < 20 ? "start" : "middle",
+        });
+        tick.textContent = sec + " s";
+        plot.appendChild(tick);
+      }
+
+      // The line, broken wherever readings stopped for a while.
       var d = history
         .map(function (p, idx) {
-          return (idx === 0 ? "M" : "L") + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1);
+          var gap = idx === 0 || p.t - history[idx - 1].t > CHART_GAP_MS;
+          return (gap ? "M" : "L") + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1);
         })
         .join(" ");
-      svg.appendChild(svgEl("path", { class: "line", d: d }));
+      plot.appendChild(svgEl("path", { class: "line", d: d }));
       var last = history[history.length - 1];
-      svg.appendChild(svgEl("circle", { class: "dot", cx: x(last.t), cy: y(last.v), r: 4 }));
+      plot.appendChild(svgEl("circle", { class: "dot", cx: x(last.t), cy: y(last.v), r: 4 }));
     }
 
-    els.chart.replaceChildren(svg);
+    els.chartAxis.replaceChildren(axis);
+    els.chartScroll.replaceChildren(plot);
+    if (following) {
+      scrollChartToLatest();
+    }
+    updateLatestButton();
     updateStats();
   }
 
@@ -306,7 +368,11 @@
 
     if (typeof value === "number" && isFinite(value)) {
       var t = Date.parse(resource.effectiveDateTime);
-      history.push({ t: isNaN(t) ? Date.now() : t, v: value });
+      var point = { t: isNaN(t) ? Date.now() : t, v: value };
+      if (sessionStart === null) {
+        sessionStart = point.t;
+      }
+      history.push(point);
       drawChart();
     }
   }
@@ -331,6 +397,10 @@
   // A new simulated session started: forget everything shown so far.
   function resetDisplay() {
     history = [];
+    sessionStart = null;
+    if (els.chartScroll) {
+      els.chartScroll.scrollLeft = 0;
+    }
     lastReadingAt = null;
     els.hrValue.textContent = "—";
     els.hrTimestamp.textContent = "No reading yet";
@@ -937,6 +1007,7 @@
     els.tokenInput.value = "";
     showConnectError("");
     showView("app");
+    drawChart(); // now that the chart has a width
     openSocket(currentToken);
     loadScenarios();
   }
@@ -1039,6 +1110,7 @@
     els.fhirPause.addEventListener("click", function () {
       setPaused(!viewer.paused);
     });
+    initChart();
     drawChart();
     // Nothing connects until the start screen's "I understand".
     checkAuthRequired();

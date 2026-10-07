@@ -295,11 +295,33 @@ button:disabled {
   opacity: 0.5;
 }
 
-/* Live heart-rate chart (drawn as inline SVG by app.js). */
+/* Live heart-rate strip chart (inline SVG drawn by app.js): the bpm axis stays
+   put on the left while the plot scrolls sideways. */
+.card-head + .chart {
+  margin-top: 0.75rem;
+}
+
+.chart {
+  display: flex;
+}
+
 .chart svg {
   display: block;
-  width: 100%;
-  height: auto;
+}
+
+.chart-axis {
+  flex: 0 0 auto;
+}
+
+.chart-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.chart .grid-time {
+  stroke-dasharray: 2 4;
 }
 
 .chart .grid {
