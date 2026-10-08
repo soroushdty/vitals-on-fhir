@@ -5,8 +5,9 @@
 subclass by reading its class-level LOINC / UCUM / profile metadata; no
 mapper subclass is needed when adding a new scalar vital sign.
 
-``ComponentVitalMapper`` is a roadmap-ready stub for multi-component vitals
-(e.g. blood pressure). No concrete vital uses it in the MVP.
+``ComponentVitalMapper`` handles any :class:`~vitals_on_fhir.vitals.ComponentVital`
+subclass (e.g. :class:`~vitals_on_fhir.vitals.BloodPressure`), building the
+Observation's ``component`` list from the class's ``ComponentSpec`` metadata.
 
 Observations target **FHIR R4 (4.0.1)** semantics and are built with the
 R4B-compatible models under ``fhir.resources.R4B``. ``fhir.resources`` is

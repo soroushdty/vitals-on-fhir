@@ -1,7 +1,9 @@
 # Roadmap
 
-1. **Heart rate from wearables** (standard BLE Heart Rate Service). *MVP*
-2. **Home health devices** via standard Bluetooth health profiles: new `ScalarVital` and `ComponentVital` subclasses for blood pressure, pulse oximetry, temperature, and weight, plus a generalized BLE adapter with per-profile payload parsers and support for store-and-forward readings.
+Phases are opened one at a time by a decision record. What has shipped is listed in the [README](../README.md#what-it-supports-today).
+
+1. **Heart rate from wearables** (standard BLE Heart Rate Service). *Delivered.*
+2. **Home health devices** via standard Bluetooth health profiles: `ScalarVital` and `ComponentVital` subclasses for blood pressure, pulse oximetry, temperature, and weight, a shared BLE connection with per-profile payload parsers, and device-reported timestamps. *Open ([ADR-0001](adr-0001-open-phase-2-home-health-devices.md)); all four vital signs have shipped.* Follow-ups are tracked as issues, for example reading the thermometer's static Temperature Type characteristic ([#26](https://github.com/soroushdty/vitals-on-fhir/issues/26)).
 3. **Phone health aggregators** (Android Health Connect, Apple HealthKit) as new `DeviceAdapter` subclasses.
 
    *Preview note (context only; phase 3 is closed — do not build until opened via an ADR).* This is
