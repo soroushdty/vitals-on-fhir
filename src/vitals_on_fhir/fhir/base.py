@@ -62,45 +62,52 @@ class VitalMapper(abc.ABC):
 # Mapper registry
 # ---------------------------------------------------------------------------
 
-_registry: dict[type[VitalSign], VitalMapper] = {}
 
+class MapperRegistry:
+    """Maps vital-sign classes to the :class:`VitalMapper` that handles them.
 
-def register_mapper(vital_class: type[VitalSign], mapper: VitalMapper) -> None:
-    """Register *mapper* as the handler for *vital_class* and its subclasses.
-
-    If a mapper is already registered for *vital_class* it is silently
-    replaced.  Use :func:`resolve_mapper` to look up a mapper, which walks the
-    MRO so subclasses inherit their parent's mapper unless explicitly
-    overridden.
-
-    Args:
-        vital_class: The :class:`~vitals_on_fhir.vitals.VitalSign` subclass
-            this mapper handles.
-        mapper: The :class:`VitalMapper` instance to associate with
-            *vital_class*.
+    Resolution walks the MRO, so a subclass inherits its parent's mapper
+    unless one is registered for it.  The composition root builds a registry
+    (see :func:`vitals_on_fhir.fhir.default_mapper_registry`) and injects it
+    into the orchestrator; there is no module-level registry.
     """
-    _registry[vital_class] = mapper
 
+    def __init__(self) -> None:
+        self._mappers: dict[type[VitalSign], VitalMapper] = {}
 
-def resolve_mapper(vital_class: type[VitalSign]) -> VitalMapper:
-    """Return the :class:`VitalMapper` registered for *vital_class*.
+    def register(self, vital_class: type[VitalSign], mapper: VitalMapper) -> None:
+        """Register *mapper* as the handler for *vital_class* and its subclasses.
 
-    Resolution walks the MRO of *vital_class* from most-specific to least,
-    returning the first match found.  This means a subclass inherits its
-    parent's mapper unless one is explicitly registered for it.
+        If a mapper is already registered for *vital_class* it is replaced.
 
-    Args:
-        vital_class: The concrete :class:`~vitals_on_fhir.vitals.VitalSign`
-            subclass to look up.
+        Args:
+            vital_class: The :class:`~vitals_on_fhir.vitals.VitalSign` subclass
+                this mapper handles.
+            mapper: The :class:`VitalMapper` instance to associate with
+                *vital_class*.
+        """
+        self._mappers[vital_class] = mapper
 
-    Returns:
-        The closest registered :class:`VitalMapper`.
+    def resolve(self, vital_class: type[VitalSign]) -> VitalMapper:
+        """Return the :class:`VitalMapper` registered for *vital_class*.
 
-    Raises:
-        KeyError: If no mapper is registered for *vital_class* or any of its
-            bases.
-    """
-    for klass in vital_class.__mro__:
-        if klass in _registry:
-            return _registry[klass]
-    raise KeyError(f"No VitalMapper registered for {vital_class.__qualname__} or any of its bases.")
+        Resolution walks the MRO of *vital_class* from most-specific to least,
+        returning the first match found.
+
+        Args:
+            vital_class: The concrete :class:`~vitals_on_fhir.vitals.VitalSign`
+                subclass to look up.
+
+        Returns:
+            The closest registered :class:`VitalMapper`.
+
+        Raises:
+            KeyError: If no mapper is registered for *vital_class* or any of its
+                bases.
+        """
+        for klass in vital_class.__mro__:
+            if klass in self._mappers:
+                return self._mappers[klass]
+        raise KeyError(
+            f"No VitalMapper registered for {vital_class.__qualname__} or any of its bases."
+        )

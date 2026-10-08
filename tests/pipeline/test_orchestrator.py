@@ -2,8 +2,9 @@
 """Tests for the pipeline orchestrator (``pipeline/orchestrator.py``).
 
 Uses ``MockAdapter`` as the vital-sign source, the real ``ScalarVitalMapper``
-(resolved via the mapper registry), and a ``ValidatorChain`` assembled from the
-shipped validators. Sinks are lightweight fakes implementing ``ObservationSink``.
+(resolved via the injected mapper registry), and a ``ValidatorChain`` assembled
+from the shipped validators. Sinks are lightweight fakes implementing
+``ObservationSink``.
 No ``bleak`` import; async tests run via the ``asyncio.run`` pattern because
 ``pytest-asyncio`` is not installed.
 """
@@ -11,13 +12,14 @@ No ``bleak`` import; async tests run via the ``asyncio.run`` pattern because
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vitals_on_fhir.adapters.builtin.mock import EmissionMode, MockAdapter
-from vitals_on_fhir.fhir import ScalarVitalMapper
+from vitals_on_fhir.fhir import ScalarVitalMapper, VitalMapper, default_mapper_registry
 from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.pipeline.orchestrator import Orchestrator
 from vitals_on_fhir.validation import (
@@ -26,7 +28,8 @@ from vitals_on_fhir.validation import (
     SensorContactValidator,
     ValidatorChain,
 )
-from vitals_on_fhir.vitals.base import DeviceInfo
+from vitals_on_fhir.vitals import HeartRate
+from vitals_on_fhir.vitals.base import DeviceInfo, VitalSign
 
 if TYPE_CHECKING:
     from fhir.resources.R4B.observation import Observation
@@ -94,7 +97,7 @@ def test_property_17_failing_sink_does_not_stop_others(
     orchestrator = Orchestrator(
         MockAdapter(EmissionMode.VALID, interval=0.0, count=count),
         _make_chain(),
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         sinks,
         patient_ref=_PATIENT_REF,
         device_ref=_DEVICE_REF,
@@ -115,7 +118,7 @@ def test_observations_from_a_simulated_device_are_labelled_htest() -> None:
     orchestrator = Orchestrator(
         MockAdapter(EmissionMode.VALID, interval=0.0, count=2),
         _make_chain(),
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         [sink],
         patient_ref=_PATIENT_REF,
         device_ref=_DEVICE_REF,
@@ -142,7 +145,7 @@ def test_observations_from_a_real_device_carry_no_test_label() -> None:
     orchestrator = Orchestrator(
         _RealLookingMock(EmissionMode.VALID, interval=0.0, count=2),
         _make_chain(),
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         [sink],
         patient_ref=_PATIENT_REF,
         device_ref=_DEVICE_REF,
@@ -152,3 +155,46 @@ def test_observations_from_a_real_device_carry_no_test_label() -> None:
 
     assert len(sink.received) == 2
     assert all(not observation.meta.security for observation in sink.received)
+
+
+class _CountingMapper(VitalMapper):
+    """Delegates to ``ScalarVitalMapper`` and counts the readings it maps."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self._inner = ScalarVitalMapper()
+
+    def to_observation(
+        self, vital: VitalSign, patient_ref: str, device_ref: str, issued: datetime
+    ) -> Observation:
+        self.calls += 1
+        return self._inner.to_observation(vital, patient_ref, device_ref, issued)
+
+
+def test_readings_are_mapped_by_the_injected_registry() -> None:
+    """A mapper registered in the injected registry maps the readings (#38)."""
+    mapper = _CountingMapper()
+    mappers = default_mapper_registry()
+    mappers.register(HeartRate, mapper)
+    sink = RecordingSink()
+    orchestrator = Orchestrator(
+        MockAdapter(EmissionMode.VALID, interval=0.0, count=3),
+        _make_chain(),
+        mappers,
+        [sink],
+        patient_ref=_PATIENT_REF,
+        device_ref=_DEVICE_REF,
+    )
+
+    asyncio.run(orchestrator.run())
+
+    assert mapper.calls == 3
+    assert len(sink.received) == 3
+
+
+def test_registering_a_mapper_does_not_leak_into_other_registries() -> None:
+    """Each default registry is independent; there is no shared module state."""
+    first = default_mapper_registry()
+    first.register(HeartRate, _CountingMapper())
+
+    assert isinstance(default_mapper_registry().resolve(HeartRate), ScalarVitalMapper)

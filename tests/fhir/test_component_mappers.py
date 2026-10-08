@@ -17,9 +17,12 @@ from uuid import UUID
 from vitals_on_fhir.fhir import (
     ComponentVitalMapper,
     ScalarVitalMapper,
-    resolve_mapper,
+    default_mapper_registry,
 )
 from vitals_on_fhir.vitals import BloodPressure, HeartRate
+
+#: One registry for the whole module, so resolved mappers compare by identity.
+_MAPPERS = default_mapper_registry()
 
 _PATIENT_REF = "Patient/local-patient"
 _DEVICE_REF = "Device/blood-pressure-cuff"
@@ -44,13 +47,13 @@ def _map_bp() -> object:
 
 def test_blood_pressure_resolves_to_component_mapper() -> None:
     """``BloodPressure`` resolves to ``ComponentVitalMapper`` via the MRO."""
-    resolved = resolve_mapper(BloodPressure)
+    resolved = _MAPPERS.resolve(BloodPressure)
     assert isinstance(resolved, ComponentVitalMapper)
 
 
 def test_heart_rate_still_resolves_to_scalar_mapper() -> None:
     """``HeartRate`` still resolves to ``ScalarVitalMapper`` (scalar path unchanged)."""
-    resolved = resolve_mapper(HeartRate)
+    resolved = _MAPPERS.resolve(HeartRate)
     assert isinstance(resolved, ScalarVitalMapper)
 
 

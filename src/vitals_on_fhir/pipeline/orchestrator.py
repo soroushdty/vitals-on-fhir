@@ -3,8 +3,8 @@
 
 The :class:`Orchestrator` is the composition root of the data pipeline.  It
 holds references to all injected collaborators (adapter, validator chain,
-mapper, sinks) but contains no concrete business logic itself.  All concrete
-implementations are chosen in ``cli.py`` and injected here.
+mapper registry, sinks) but contains no concrete business logic itself.  All
+concrete implementations are chosen in ``cli.py`` and injected here.
 
 Allowed imports: ``vitals/``, ``adapters/``, ``validation/``, ``fhir/``,
 ``pipeline/base``, and the Python standard library.  Must NOT import from
@@ -18,13 +18,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from vitals_on_fhir.adapters.base import DeviceAdapter
-from vitals_on_fhir.fhir import mark_simulated, resolve_mapper
-from vitals_on_fhir.fhir.base import VitalMapper
+from vitals_on_fhir.fhir import mark_simulated
+from vitals_on_fhir.fhir.base import MapperRegistry
 from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.validation.base import ValidatorChain
 
 if TYPE_CHECKING:
-
     from vitals_on_fhir.adapters.base import StateCallback
 
 logger = logging.getLogger(__name__)
@@ -41,10 +40,10 @@ class Orchestrator:
             yields raw :class:`~vitals_on_fhir.vitals.VitalSign` objects.
         validator_chain: A :class:`~vitals_on_fhir.validation.ValidatorChain`
             that accepts or rejects each reading.
-        mapper: A :class:`~vitals_on_fhir.fhir.VitalMapper` that converts
-            accepted readings to FHIR Observations. Retained for explicit
-            injection; per-reading resolution uses :func:`resolve_mapper` so
-            each vital-sign type maps via its MRO.
+        mappers: The :class:`~vitals_on_fhir.fhir.MapperRegistry` that picks
+            the :class:`~vitals_on_fhir.fhir.VitalMapper` for each accepted
+            reading by its vital-sign type, so one stream can carry several
+            vital-sign types.
         sinks: Ordered list of :class:`ObservationSink` instances that receive
             each generated Observation.
         patient_ref: FHIR reference string for the subject Patient
@@ -62,7 +61,7 @@ class Orchestrator:
         self,
         adapter: DeviceAdapter,
         validator_chain: ValidatorChain,
-        mapper: VitalMapper,
+        mappers: MapperRegistry,
         sinks: list[ObservationSink],
         *,
         patient_ref: str,
@@ -71,7 +70,7 @@ class Orchestrator:
     ) -> None:
         self._adapter = adapter
         self._validator_chain = validator_chain
-        self._mapper = mapper
+        self._mappers = mappers
         self._sinks = list(sinks)
         self._patient_ref = patient_ref
         self._device_ref = device_ref
@@ -83,9 +82,9 @@ class Orchestrator:
         Connects the adapter, then iterates the vital-sign stream. Each reading
         is validated; rejected readings are logged at ``INFO`` (validator name
         and reason, **never the measurement value**) and skipped. Accepted
-        readings are mapped to a FHIR Observation via
-        :func:`resolve_mapper`, labelled as test data when the adapter's device
-        is simulated, and fanned out to every registered sink. A
+        readings are mapped to a FHIR Observation by the mapper the injected
+        registry resolves for the reading's type, labelled as test data when the
+        adapter's device is simulated, and fanned out to every registered sink. A
         failing sink is caught and logged so the remaining sinks still receive
         the Observation.
 
@@ -108,7 +107,7 @@ class Orchestrator:
                 continue
 
             try:
-                mapper = resolve_mapper(type(vital))
+                mapper = self._mappers.resolve(type(vital))
                 observation = mapper.to_observation(
                     vital,
                     self._patient_ref,

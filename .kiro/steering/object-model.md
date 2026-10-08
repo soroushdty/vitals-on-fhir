@@ -207,7 +207,7 @@ Handles `ComponentVital` subclasses. No concrete vital uses it in the MVP.
 
 ### Mapper registry
 
-Resolves the mapper for a vital-sign class by walking its MRO. A subclass inherits its parent's mapper unless one is registered explicitly. Registration is done in `fhir/__init__.py`.
+`MapperRegistry` (in `fhir/base.py`) resolves the mapper for a vital-sign class by walking its MRO. A subclass inherits its parent's mapper unless one is registered explicitly. `default_mapper_registry()` in `fhir/__init__.py` returns a new registry with `ScalarVitalMapper` for `ScalarVital` and `ComponentVitalMapper` for `ComponentVital`. There is no module-level registry and importing `fhir` registers nothing: `cli.py` builds the registry and injects it into the orchestrator.
 
 ### Resource builders (in `fhir/builders.py`)
 
@@ -233,7 +233,7 @@ Observer pattern. The orchestrator fans each Observation out to every registered
 
 ### Orchestrator
 
-Wires: `DeviceAdapter` → `ValidatorChain` → `VitalMapper` → `list[ObservationSink]`. Depends on ABCs only. Concrete classes are chosen and injected in `cli.py`.
+Wires: `DeviceAdapter` → `ValidatorChain` → `MapperRegistry` (a `VitalMapper` per vital-sign type) → `list[ObservationSink]`. Depends on ABCs only. Concrete classes are chosen and injected in `cli.py`.
 
 ---
 
