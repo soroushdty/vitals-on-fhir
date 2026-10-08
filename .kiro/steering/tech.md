@@ -108,8 +108,9 @@ Rules:
 
 Every push and pull request must pass:
 1. `ruff check .` — zero lint errors
-2. `mypy src` — zero type errors (strict mode)
-3. `pytest` (fast suite, no `hardware` marker) — all tests pass
+2. `ruff format --check .` — the code is formatted
+3. `mypy src` — zero type errors (strict mode)
+4. `pytest` (fast suite, no `hardware` marker) — all tests pass
 
 Tests marked `hardware` are excluded from CI by default (they require physical devices). The `hardware` marker must be registered in `pytest.ini` or `pyproject.toml`.
 

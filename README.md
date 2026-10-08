@@ -108,7 +108,7 @@ uv run ruff format .           # format
 uv run mypy src                # type check
 ```
 
-- **CI** (GitHub Actions) runs lint, type checks, and the fast test suite on every pull request.
+- **CI** (GitHub Actions) runs lint, a formatting check (`ruff format --check`), type checks, and the fast test suite on every pull request.
 - **Architecture is enforced by tests**, not just documentation (for example, adapters may not import FHIR code).
 - **`CHANGELOG.md`** records significant changes: implemented specs, public API changes, config changes, and steering updates.
 
