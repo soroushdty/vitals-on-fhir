@@ -19,7 +19,7 @@ import pytest
 
 from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
 from vitals_on_fhir.adapters.weight_parser import WeightMeasurementParser
-from vitals_on_fhir.fhir import ScalarVitalMapper
+from vitals_on_fhir.fhir import default_mapper_registry
 from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.pipeline.orchestrator import Orchestrator
 from vitals_on_fhir.validation import (
@@ -93,7 +93,7 @@ def _run(payload: bytes, configured: int | None) -> _Sink:
     orchestrator = Orchestrator(
         _ScaleAdapter(payload, configured),
         chain,
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         [sink],
         patient_ref="Patient/local-patient",
         device_ref="Device/scale",

@@ -14,7 +14,7 @@ from hypothesis import strategies as st
 from vitals_on_fhir.fhir import (
     ComponentVitalMapper,
     ScalarVitalMapper,
-    resolve_mapper,
+    default_mapper_registry,
 )
 from vitals_on_fhir.vitals import (
     BloodPressure,
@@ -23,12 +23,15 @@ from vitals_on_fhir.vitals import (
     ScalarVital,
 )
 
+#: One registry for the whole module, so resolved mappers compare by identity.
+_MAPPERS = default_mapper_registry()
+
 # Feature: hr-pipeline, Property 9: Mapper resolves via the MRO
 #
 # An unregistered ScalarVital subclass carrying valid ClassVar metadata must
-# resolve to the ScalarVitalMapper instance registered for ScalarVital (as a
-# fhir-package-load side effect) via resolve_mapper's MRO walk — the subclass
-# needs no mapper of its own.
+# resolve to the ScalarVitalMapper instance registered for ScalarVital (by
+# default_mapper_registry) via the registry's MRO walk — the subclass needs no
+# mapper of its own.
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -61,12 +64,12 @@ def test_unregistered_scalar_vital_resolves_to_scalar_mapper() -> None:
 
     Validates: Requirements FR-4.9
     """
-    scalar_mapper = resolve_mapper(ScalarVital)
+    scalar_mapper = _MAPPERS.resolve(ScalarVital)
     assert isinstance(scalar_mapper, ScalarVitalMapper)
 
     # The subclass has no explicit registration, yet resolves to the very same
     # mapper instance registered for its ScalarVital base via the MRO walk.
-    resolved = resolve_mapper(_UnregisteredScalarVital)
+    resolved = _MAPPERS.resolve(_UnregisteredScalarVital)
     assert isinstance(resolved, ScalarVitalMapper)
     assert resolved is scalar_mapper
 
@@ -83,12 +86,12 @@ def test_scalar_vital_subclasses_resolve_via_mro(
     """Every unregistered ScalarVital subclass resolves to the base's mapper.
 
     For any ScalarVital subclass carrying valid metadata and no explicit
-    registration, resolve_mapper returns the mapper registered for ScalarVital.
+    registration, the registry returns the mapper registered for ScalarVital.
 
     Validates: Requirements FR-4.9
     """
-    base_mapper = resolve_mapper(ScalarVital)
-    resolved = resolve_mapper(vital_class)
+    base_mapper = _MAPPERS.resolve(ScalarVital)
+    resolved = _MAPPERS.resolve(vital_class)
 
     assert isinstance(resolved, ScalarVitalMapper)
     # Same instance the base resolves to — inherited via the MRO, not re-created.
@@ -276,8 +279,8 @@ def test_oxygen_saturation_resolves_to_scalar_mapper() -> None:
 
     Validates: Requirements FR-SPO2-5, NFR-SPO2-1
     """
-    scalar_mapper = resolve_mapper(ScalarVital)
-    resolved = resolve_mapper(OxygenSaturation)
+    scalar_mapper = _MAPPERS.resolve(ScalarVital)
+    resolved = _MAPPERS.resolve(OxygenSaturation)
 
     assert isinstance(resolved, ScalarVitalMapper)
     assert resolved is scalar_mapper
@@ -293,8 +296,8 @@ def test_existing_mapper_resolutions_unchanged() -> None:
 
     Validates: Requirements FR-SPO2-5, NFR-SPO2-1
     """
-    assert isinstance(resolve_mapper(HeartRate), ScalarVitalMapper)
-    assert isinstance(resolve_mapper(BloodPressure), ComponentVitalMapper)
+    assert isinstance(_MAPPERS.resolve(HeartRate), ScalarVitalMapper)
+    assert isinstance(_MAPPERS.resolve(BloodPressure), ComponentVitalMapper)
 
 
 # Feature: oxygen-saturation, FR-SPO2-5 / NFR-SPO2-3: valid US Core Pulse Oximetry

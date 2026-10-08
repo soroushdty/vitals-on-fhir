@@ -23,7 +23,7 @@ from hypothesis import strategies as st
 
 from vitals_on_fhir.adapters.base import ConnectionState, DeviceAdapter
 from vitals_on_fhir.adapters.builtin.mock import EmissionMode, MockAdapter
-from vitals_on_fhir.fhir import ScalarVitalMapper
+from vitals_on_fhir.fhir import default_mapper_registry
 from vitals_on_fhir.pipeline.base import ObservationSink
 from vitals_on_fhir.pipeline.orchestrator import Orchestrator
 from vitals_on_fhir.validation.base import ValidatorChain
@@ -128,7 +128,7 @@ def _run_orchestrator(adapter: DeviceAdapter) -> _RecordingSink:
     orchestrator = Orchestrator(
         adapter,
         _fresh_chain(),
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         [sink],
         patient_ref=_PATIENT_REF,
         device_ref=_DEVICE_REF,

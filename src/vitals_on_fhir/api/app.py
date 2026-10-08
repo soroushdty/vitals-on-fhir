@@ -26,6 +26,7 @@ Allowed imports: stdlib, ``fastapi``/``starlette``, ``store/``, ``fhir/``,
 from __future__ import annotations
 
 import logging
+from datetime import UTC, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
@@ -80,6 +81,7 @@ def create_app(
     device: Device | Callable[[], Device],
     static_dir: str | Path | None = None,
     scenario_control: mock_control.ScenarioControl | None = None,
+    search_timezone: tzinfo | None = UTC,
 ) -> FastAPI:
     """Construct and return the configured FastAPI application.
 
@@ -125,6 +127,8 @@ def create_app(
         scenario_control: Mock-adapter scenario switch.  When given, the
             token-protected ``/mock/*`` endpoints are registered; otherwise
             they do not exist.
+        search_timezone: The zone of a FHIR ``date`` search value without a
+            UTC offset; ``None`` for the host's local zone.
 
     Returns:
         A fully configured :class:`fastapi.FastAPI` instance ready for uvicorn.
@@ -146,6 +150,7 @@ def create_app(
     app.dependency_overrides[routes.get_store] = lambda: store
     app.dependency_overrides[routes.get_authenticator] = lambda: authenticator
     app.dependency_overrides[routes.get_patient_resource] = lambda: patient
+    app.dependency_overrides[routes.get_search_timezone] = lambda: search_timezone
     app.dependency_overrides[routes.get_device_resource] = (
         device if callable(device) else lambda: device
     )

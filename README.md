@@ -94,6 +94,7 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 | `VOF_DEVICE_USER_ID` | *(none)* | Multi-user BP cuff or scale: the device user (0–254) whose readings are recorded. Other users' readings are rejected, and so is every reading from a multi-user device while this is unset (ADR-0004). Single-user devices ignore it |
 | `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
 | `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
+| `VOF_SEARCH_TIMEZONE` | `UTC` | Zone of a FHIR `date` search value without a UTC offset (`date=2026-10-07` is that day in this zone): `UTC`, `local` (the host's zone), or an IANA name such as `America/Phoenix` |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
 | `VOF_STORE_MAX` | `10000` | Maximum Observations kept in memory |
 

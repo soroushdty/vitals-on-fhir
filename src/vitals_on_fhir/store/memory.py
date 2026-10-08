@@ -128,23 +128,27 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
         self,
         *,
         code: str | None = None,
+        system: str | None = None,
         date_from: datetime | None = None,
-        date_to: datetime | None = None,
+        date_before: datetime | None = None,
         sort_desc: bool = True,
         count: int | None = None,
     ) -> list[Observation]:
         """Search stored Observations with optional filters.
 
-        Filters by LOINC ``code`` (matched against any ``code.coding`` entry) and
-        by ``effectiveDateTime`` range (inclusive bounds), sorts by
+        Filters by ``code`` and ``system`` (both matched against the same
+        ``code.coding`` entry, any entry) and by ``effectiveDateTime`` range
+        (``[date_from, date_before)``), sorts by
         ``effectiveDateTime`` (newest first when ``sort_desc``), and truncates
         to ``count`` results.  Every returned Observation is a deep-copied
         snapshot.
 
         Args:
-            code: LOINC code filter.
+            code: Coding code filter; ``None`` matches any code.
+            system: Coding system filter; ``None`` matches any system and ``""``
+                only a coding without one.
             date_from: Inclusive lower bound on ``effectiveDateTime``.
-            date_to: Inclusive upper bound on ``effectiveDateTime``.
+            date_before: Exclusive upper bound on ``effectiveDateTime``.
             sort_desc: Return newest first when ``True`` (default).
             count: Maximum results; ``None`` means no limit.
 
@@ -157,7 +161,7 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
         matches = [
             observation
             for observation in snapshot
-            if self._matches(observation, code, date_from, date_to)
+            if self._matches(observation, code, system, date_from, date_before)
         ]
         matches.sort(key=self._effective_sort_key, reverse=sort_desc)
 
@@ -171,12 +175,20 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _codes(observation: Observation) -> set[str]:
-        """Return every coding ``code`` in *observation*'s ``code`` (empty if none)."""
+    def _has_coding(observation: Observation, code: str | None, system: str | None) -> bool:
+        """Return whether one coding of *observation*'s ``code`` matches *code* and *system*.
+
+        ``None`` matches anything; a *system* of ``""`` matches only a coding
+        without a system (FHIR token ``|code``).
+        """
         observation_code = observation.code
         if observation_code is None or not observation_code.coding:
-            return set()
-        return {coding.code for coding in observation_code.coding if coding.code}
+            return False
+        return any(
+            (code is None or coding.code == code)
+            and (system is None or (coding.system or "") == system)
+            for coding in observation_code.coding
+        )
 
     @staticmethod
     def _effective(observation: Observation) -> datetime | None:
@@ -202,20 +214,25 @@ class InMemoryObservationStore(ObservationStore, ObservationSink):
         cls,
         observation: Observation,
         code: str | None,
+        system: str | None,
         date_from: datetime | None,
-        date_to: datetime | None,
+        date_before: datetime | None,
     ) -> bool:
         """Return ``True`` if *observation* passes the code and date filters."""
-        if code is not None and code not in cls._codes(observation):
+        if (code is not None or system is not None) and not cls._has_coding(
+            observation, code, system
+        ):
             return False
 
-        if date_from is not None or date_to is not None:
-            effective = cls._effective(observation)
-            if effective is None:
+        if date_from is not None or date_before is not None:
+            if cls._effective(observation) is None:
                 return False
+            # The sort key reads a naive effectiveDateTime as UTC, so it compares
+            # with the timezone-aware bounds.
+            effective = cls._effective_sort_key(observation)
             if date_from is not None and effective < date_from:
                 return False
-            if date_to is not None and effective > date_to:
+            if date_before is not None and effective >= date_before:
                 return False
 
         return True

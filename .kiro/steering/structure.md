@@ -105,6 +105,7 @@ Enforced by `tests/test_dependency_directions.py`. A failing test means a forbid
 | `store` | `adapters`, `validation`, `api`, `dashboard`, `cli` |
 | `api` | `adapters`, `validation`, `pipeline`, `dashboard`, `cli` |
 | `dashboard` | `adapters`, `validation`, `api`, `cli` |
+| top-level modules (`config.py`, `__init__.py`) | `cli` |
 
 `cli.py` is the only module that may import from all packages.
 

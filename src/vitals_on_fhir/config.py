@@ -122,6 +122,12 @@ class Settings(BaseSettings):
     # timestamp as being in that zone.
     timezone: str = "local"
 
+    # FHIR date search: the zone of a ``date`` search value that has no UTC
+    # offset (e.g. ``date=2026-10-07``). "UTC" (the default) gives the same
+    # results on every host; "local" uses the host's zone, as FHIR suggests;
+    # or an IANA name like "America/Phoenix".
+    search_timezone: str = "UTC"
+
     # Runtime ``config.yaml`` path, chosen by the composition root and threaded
     # into the YAML source below.  Not a settings field; carried on the class so
     # the ``settings_customise_sources`` classmethod can read it.
@@ -148,10 +154,10 @@ class Settings(BaseSettings):
         """Treat an empty ``VOF_DEVICE_USER_ID=`` as unset."""
         return None if value == "" else value
 
-    @field_validator("timezone")
+    @field_validator("timezone", "search_timezone")
     @classmethod
     def _validate_timezone(cls, value: str) -> str:
-        """Fail at construction if ``timezone`` is neither ``local`` nor resolvable."""
+        """Fail at construction if a zone setting is neither ``local`` nor resolvable."""
         resolve_timezone(value)
         return value
 

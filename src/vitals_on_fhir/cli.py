@@ -73,7 +73,7 @@ from vitals_on_fhir.api import (
 from vitals_on_fhir.api.app import BroadcasterLike
 from vitals_on_fhir.config import DEFAULT_CONFIG_PATH, Settings, resolve_timezone
 from vitals_on_fhir.dashboard import DashboardBroadcaster
-from vitals_on_fhir.fhir import ScalarVitalMapper, build_device, build_patient
+from vitals_on_fhir.fhir import build_device, build_patient, default_mapper_registry
 from vitals_on_fhir.pipeline import ObservationSink, Orchestrator
 from vitals_on_fhir.store import InMemoryObservationStore
 from vitals_on_fhir.validation import (
@@ -366,7 +366,7 @@ def _build_orchestrator(
     return Orchestrator(
         adapter,
         chain,
-        ScalarVitalMapper(),
+        default_mapper_registry(),
         sinks,
         patient_ref=patient_ref,
         device_ref=device_ref,
@@ -438,6 +438,7 @@ async def _run(settings: Settings, adapter_spec: str, authenticator: Authenticat
         scenario_control=(
             HeartRateScenarioControl(adapter) if isinstance(adapter, MockAdapter) else None
         ),
+        search_timezone=resolve_timezone(settings.search_timezone),
     )
 
     server = uvicorn.Server(

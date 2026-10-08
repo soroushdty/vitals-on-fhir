@@ -26,7 +26,7 @@ from hypothesis import strategies as st
 from vitals_on_fhir.fhir import (
     ComponentVitalMapper,
     ScalarVitalMapper,
-    resolve_mapper,
+    default_mapper_registry,
 )
 from vitals_on_fhir.vitals import (
     BloodPressure,
@@ -36,6 +36,9 @@ from vitals_on_fhir.vitals import (
     OxygenSaturation,
     ScalarVital,
 )
+
+#: One registry for the whole module, so resolved mappers compare by identity.
+_MAPPERS = default_mapper_registry()
 
 # Timezone-aware datetimes spanning a range of offsets so the mapper's UTC
 # conversion is exercised, not just naive-UTC inputs.
@@ -55,8 +58,8 @@ def test_body_weight_resolves_to_scalar_mapper() -> None:
 
     Validates: Requirements FR-WT-5, NFR-WT-1
     """
-    scalar_mapper = resolve_mapper(ScalarVital)
-    resolved = resolve_mapper(BodyWeight)
+    scalar_mapper = _MAPPERS.resolve(ScalarVital)
+    resolved = _MAPPERS.resolve(BodyWeight)
 
     assert isinstance(resolved, ScalarVitalMapper)
     # The very same instance the base resolves to — inherited via the MRO.
@@ -74,10 +77,10 @@ def test_existing_mapper_resolutions_unchanged_after_weight() -> None:
 
     Validates: Requirements FR-WT-5, NFR-WT-1
     """
-    assert isinstance(resolve_mapper(HeartRate), ScalarVitalMapper)
-    assert isinstance(resolve_mapper(OxygenSaturation), ScalarVitalMapper)
-    assert isinstance(resolve_mapper(BodyTemperature), ScalarVitalMapper)
-    assert isinstance(resolve_mapper(BloodPressure), ComponentVitalMapper)
+    assert isinstance(_MAPPERS.resolve(HeartRate), ScalarVitalMapper)
+    assert isinstance(_MAPPERS.resolve(OxygenSaturation), ScalarVitalMapper)
+    assert isinstance(_MAPPERS.resolve(BodyTemperature), ScalarVitalMapper)
+    assert isinstance(_MAPPERS.resolve(BloodPressure), ComponentVitalMapper)
 
 
 # Feature: weight-body-mass, FR-WT-5 / NFR-WT-3: valid US Core Body Weight

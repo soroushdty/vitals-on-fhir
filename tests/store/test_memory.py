@@ -159,7 +159,7 @@ def test_fresh_store_searches_empty() -> None:
         assert (
             await store.search(
                 date_from=_EPOCH,
-                date_to=_EPOCH + timedelta(hours=1),
+                date_before=_EPOCH + timedelta(hours=1),
             )
             == []
         )
@@ -212,7 +212,7 @@ def test_search_honors_filters_sort_and_count(
     """Search results respect every filter, the sort order, and the count bound.
 
     For any set of stored heart-rate Observations and any combination of ``code``,
-    ``date_from``/``date_to`` bounds, ``sort_desc``, and ``count``:
+    ``date_from``/``date_before`` bounds, ``sort_desc``, and ``count``:
 
     - every returned entry satisfies all supplied filters,
     - results are ordered by ``effectiveDateTime`` (descending when ``sort_desc``),
@@ -223,7 +223,7 @@ def test_search_honors_filters_sort_and_count(
     """
     low, high = sorted(window)
     date_from = _EPOCH + timedelta(seconds=low) if use_from else None
-    date_to = _EPOCH + timedelta(seconds=high) if use_to else None
+    date_before = _EPOCH + timedelta(seconds=high) if use_to else None
     # HeartRate's LOINC code; every stored Observation carries it, so a code filter
     # of "8867-4" matches all and an unrelated code matches none.
     code = "8867-4" if use_code else None
@@ -242,13 +242,13 @@ def test_search_honors_filters_sort_and_count(
             for obs in stored
             if (code is None or _observation_code(obs) == code)
             and (date_from is None or _observation_effective(obs) >= date_from)
-            and (date_to is None or _observation_effective(obs) <= date_to)
+            and (date_before is None or _observation_effective(obs) < date_before)
         ]
 
         results = await store.search(
             code=code,
             date_from=date_from,
-            date_to=date_to,
+            date_before=date_before,
             sort_desc=sort_desc,
             count=count,
         )
@@ -262,7 +262,7 @@ def test_search_honors_filters_sort_and_count(
         full = await store.search(
             code=code,
             date_from=date_from,
-            date_to=date_to,
+            date_before=date_before,
             sort_desc=sort_desc,
             count=None,
         )
@@ -278,8 +278,8 @@ def test_search_honors_filters_sort_and_count(
                 assert _observation_code(obs) == code
             if date_from is not None:
                 assert _observation_effective(obs) >= date_from
-            if date_to is not None:
-                assert _observation_effective(obs) <= date_to
+            if date_before is not None:
+                assert _observation_effective(obs) < date_before
 
         # Sort order: effectiveDateTime is monotonic in the requested direction.
         effectives = [_observation_effective(obs) for obs in results]

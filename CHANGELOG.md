@@ -5,6 +5,43 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-08] — FHIR search semantics, injected mapper registry
+
+Fixes from an outside review of the repository: the FHIR search API now follows
+FHIR token and date search, the orchestrator uses the mappers it is given, and
+the dependency-direction test enforces the rule about `cli` it documented.
+
+- Fixed: `GET /fhir/Observation?date=` with a value without a UTC offset
+  raised `TypeError` (a 500). Such a value is now in the zone set by
+  `search_timezone` (#36)
+- Added: config `search_timezone` (`VOF_SEARCH_TIMEZONE`): `UTC` (default),
+  `local` (the host's zone, as FHIR suggests), or an IANA name. Days are
+  midnight to midnight by that zone's wall clock, across daylight-saving
+  changes. `create_app` takes it as `search_timezone`
+- Changed: a `date` value covers the range its precision implies (`2026-10-07`
+  is the whole day); `eq`, `ge`, `gt`, `le`, `lt` compare that range with
+  `effectiveDateTime`, and `gt` / `lt` are no longer treated as `ge` / `le`.
+  Repeated `date` parameters are combined. An invalid value returns 400
+  (`invalid`) instead of an unfiltered search; `ne`, `sa`, `eb`, `ap` return 400
+  (`not-supported`) (#36)
+- Fixed: `code=system|code` matches the system as well as the code; `|code`
+  and `system|` are supported (#37)
+- **Breaking:** `ObservationStore.search` takes `system` and `date_before`
+  (exclusive) in place of `date_to` (inclusive)
+- **Breaking:** `Orchestrator` takes `mappers: MapperRegistry` in place of the
+  `mapper: VitalMapper` it stored but never used (#38)
+- Added: `fhir.MapperRegistry` and `fhir.default_mapper_registry()`
+- **Breaking:** removed `fhir.register_mapper` and `fhir.resolve_mapper` and the
+  module-level registry; importing `vitals_on_fhir.fhir` no longer registers
+  mappers as a side effect (#38)
+- Changed: `tests/test_dependency_directions.py` forbids importing `cli` from
+  every package and from top-level modules, and tests the rule table itself
+  (#39)
+- Changed: steering (`object-model.md`, `fhir-conventions.md`,
+  `structure.md`), `docs/fhir-api.md`, the README, `.env.example`,
+  `config.yaml.example` and the CapabilityStatement describe the search
+  behaviour
+
 ## [2026-10-07] — Say why the device is not connected, on the dashboard
 
 The service already logged why each connection attempt failed, but the dashboard

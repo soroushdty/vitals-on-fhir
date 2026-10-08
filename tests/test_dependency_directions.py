@@ -18,6 +18,7 @@ Forbidden-import table (from structure steering doc):
     store      → must not import: adapters, validation, api, dashboard, cli
     api        → must not import: adapters, validation, pipeline, dashboard, cli
     dashboard  → must not import: adapters, validation, api, cli
+    root       → must not import: cli  (top-level modules such as config.py)
 
 ``cli.py`` lives at the root of the package and is exempt (composition root).
 """
@@ -25,7 +26,6 @@ Forbidden-import table (from structure steering doc):
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -45,14 +45,15 @@ PKG_PREFIX = "vitals_on_fhir"
 #: "root" for top-level modules like config.py) to the list of
 #: vitals_on_fhir sub-packages it must not import.
 FORBIDDEN: dict[str, list[str]] = {
-    "vitals": ["adapters", "validation", "fhir", "pipeline", "store", "api", "dashboard"],
-    "adapters": ["validation", "fhir", "pipeline", "store", "api", "dashboard"],
-    "validation": ["adapters", "fhir", "pipeline", "store", "api", "dashboard"],
-    "fhir": ["adapters", "validation", "pipeline", "store", "api", "dashboard"],
-    "pipeline": ["store", "api", "dashboard"],
-    "store": ["adapters", "validation", "api", "dashboard"],
-    "api": ["adapters", "validation", "pipeline", "dashboard"],
-    "dashboard": ["adapters", "validation", "api"],
+    "vitals": ["adapters", "validation", "fhir", "pipeline", "store", "api", "dashboard", "cli"],
+    "adapters": ["validation", "fhir", "pipeline", "store", "api", "dashboard", "cli"],
+    "validation": ["adapters", "fhir", "pipeline", "store", "api", "dashboard", "cli"],
+    "fhir": ["adapters", "validation", "pipeline", "store", "api", "dashboard", "cli"],
+    "pipeline": ["store", "api", "dashboard", "cli"],
+    "store": ["adapters", "validation", "api", "dashboard", "cli"],
+    "api": ["adapters", "validation", "pipeline", "dashboard", "cli"],
+    "dashboard": ["adapters", "validation", "api", "cli"],
+    "root": ["cli"],
 }
 
 # ---------------------------------------------------------------------------
@@ -123,32 +124,33 @@ def _collect_violations() -> list[tuple[str, str, str]]:
             # cli.py — exempt
             continue
 
-        forbidden_for_pkg = FORBIDDEN.get(src_pkg, [])
-        if not forbidden_for_pkg:
-            continue
-
         source_code = py_file.read_text(encoding="utf-8")
-        tree = ast.parse(source_code, filename=str(py_file))
-        imported_pkgs = _imported_vof_packages(tree)
-
         rel_path = str(py_file.relative_to(SRC_ROOT.parent.parent))
-        for imp in imported_pkgs:
-            if imp in forbidden_for_pkg:
-                violations.append((rel_path, src_pkg, imp))
+        violations.extend(_violations_in(rel_path, src_pkg, source_code))
 
     return violations
+
+
+def _violations_in(rel_path: str, src_pkg: str, source_code: str) -> list[tuple[str, str, str]]:
+    """Return the forbidden imports in one module's *source_code*.
+
+    Returns ``(rel_path, src_pkg, imported_pkg)`` triples, one per forbidden
+    import, using the rules in :data:`FORBIDDEN` for *src_pkg*.
+    """
+    tree = ast.parse(source_code, filename=rel_path)
+    forbidden_for_pkg = FORBIDDEN.get(src_pkg, [])
+    return [
+        (rel_path, src_pkg, imp) for imp in _imported_vof_packages(tree) if imp in forbidden_for_pkg
+    ]
 
 
 # ---------------------------------------------------------------------------
 # Parametrized per-direction tests
 # ---------------------------------------------------------------------------
 
-#: Each entry is (source_pkg, list_of_forbidden_targets) for parametrize.
-_DIRECTION_PARAMS: Sequence[tuple[str, list[str]]] = list(FORBIDDEN.items())
 
-
-@pytest.mark.parametrize("source_pkg,forbidden_targets", _DIRECTION_PARAMS)
-def test_no_forbidden_import_for_package(source_pkg: str, forbidden_targets: list[str]) -> None:
+@pytest.mark.parametrize("source_pkg", sorted(FORBIDDEN))
+def test_no_forbidden_import_for_package(source_pkg: str) -> None:
     """Assert that *source_pkg* does not import any of its forbidden targets."""
     violations: list[tuple[str, str, str]] = []
     for py_file in sorted(SRC_ROOT.rglob("*.py")):
@@ -157,13 +159,8 @@ def test_no_forbidden_import_for_package(source_pkg: str, forbidden_targets: lis
             continue
 
         source_code = py_file.read_text(encoding="utf-8")
-        tree = ast.parse(source_code, filename=str(py_file))
-        imported_pkgs = _imported_vof_packages(tree)
-
         rel_path = str(py_file.relative_to(SRC_ROOT.parent.parent))
-        for imp in imported_pkgs:
-            if imp in forbidden_targets:
-                violations.append((rel_path, source_pkg, imp))
+        violations.extend(_violations_in(rel_path, source_pkg, source_code))
 
     assert not violations, "\n".join(
         f'"{f}" imports from forbidden package "{i}" (not allowed from "{s}")'
@@ -183,3 +180,23 @@ def test_no_forbidden_imports_anywhere() -> None:
         f'"{f}" imports from forbidden package "{i}" (not allowed from "{s}")'
         for f, s, i in violations
     )
+
+
+# ---------------------------------------------------------------------------
+# The checker itself
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("source_pkg", sorted(FORBIDDEN))
+@pytest.mark.parametrize(
+    "statement",
+    ["from vitals_on_fhir.cli import main", "import vitals_on_fhir.cli"],
+)
+def test_importing_cli_is_reported(source_pkg: str, statement: str) -> None:
+    """An import of the composition root is reported from every package.
+
+    Guards the table itself: if ``cli`` is dropped from a package's rules, this
+    fails even though no source file imports ``cli``.
+    """
+    violations = _violations_in("synthetic.py", source_pkg, statement)
+    assert violations == [("synthetic.py", source_pkg, "cli")]
