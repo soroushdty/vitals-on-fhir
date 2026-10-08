@@ -457,6 +457,32 @@ def test_invalid_timezone_is_rejected(
         Settings()
 
 
+def test_search_timezone_defaults_to_utc_and_accepts_local_or_a_zone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``search_timezone`` defaults to ``UTC``; ``local`` and IANA names are accepted."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().search_timezone == "UTC"
+    monkeypatch.setenv("VOF_SEARCH_TIMEZONE", "local")
+    assert Settings().search_timezone == "local"
+    monkeypatch.setenv("VOF_SEARCH_TIMEZONE", "America/Phoenix")
+    assert Settings().search_timezone == "America/Phoenix"
+
+
+def test_invalid_search_timezone_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unresolvable ``search_timezone`` fails at startup naming the value."""
+    _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("VOF_SEARCH_TIMEZONE", "Mars/Olympus")
+
+    with pytest.raises(ValueError, match="Mars/Olympus"):
+        Settings()
+
+
 def test_resolve_timezone_local_returns_none() -> None:
     """``resolve_timezone("local")`` signals host-local with ``None`` (FR-CFG-4)."""
     assert resolve_timezone("local") is None

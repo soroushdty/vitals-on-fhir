@@ -12,7 +12,12 @@ FHIR token and date search, the orchestrator uses the mappers it is given, and
 the dependency-direction test enforces the rule about `cli` it documented.
 
 - Fixed: `GET /fhir/Observation?date=` with a value without a UTC offset
-  raised `TypeError` (a 500). A value without an offset is now read as UTC (#36)
+  raised `TypeError` (a 500). Such a value is now in the zone set by
+  `search_timezone` (#36)
+- Added: config `search_timezone` (`VOF_SEARCH_TIMEZONE`): `UTC` (default),
+  `local` (the host's zone, as FHIR suggests), or an IANA name. Days are
+  midnight to midnight by that zone's wall clock, across daylight-saving
+  changes. `create_app` takes it as `search_timezone`
 - Changed: a `date` value covers the range its precision implies (`2026-10-07`
   is the whole day); `eq`, `ge`, `gt`, `le`, `lt` compare that range with
   `effectiveDateTime`, and `gt` / `lt` are no longer treated as `ge` / `le`.
@@ -33,8 +38,9 @@ the dependency-direction test enforces the rule about `cli` it documented.
   every package and from top-level modules, and tests the rule table itself
   (#39)
 - Changed: steering (`object-model.md`, `fhir-conventions.md`,
-  `structure.md`), `docs/fhir-api.md` and the CapabilityStatement describe the
-  search behaviour
+  `structure.md`), `docs/fhir-api.md`, the README, `.env.example`,
+  `config.yaml.example` and the CapabilityStatement describe the search
+  behaviour
 
 ## [2026-10-07] — Say why the device is not connected, on the dashboard
 

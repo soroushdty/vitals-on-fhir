@@ -114,7 +114,7 @@ A new `ScalarVital` subclass with correct metadata automatically produces a vali
 | Parameter | Behavior |
 |-----------|---------|
 | `code` | FHIR token: `code` (any system), `system\|code` (both must match one coding), `\|code` (a coding without a system), or `system\|` (any code in the system), e.g. `http://loinc.org\|8867-4` |
-| `date` | Filter by `effectiveDateTime`. A value covers the range its precision implies (`2026` a year, `2026-10-07` a day, `…T12:00:00Z` a second); `eq` (default), `ge`, `gt`, `le`, `lt` compare that range with the instant. Repeated `date` parameters must all match. A value without a UTC offset is read as UTC. An invalid value, or the prefixes `ne`, `sa`, `eb`, `ap`, return 400 |
+| `date` | Filter by `effectiveDateTime`. A value covers the range its precision implies (`2026` a year, `2026-10-07` a day, `…T12:00:00Z` a second); `eq` (default), `ge`, `gt`, `le`, `lt` compare that range with the instant. Repeated `date` parameters must all match. A value without a UTC offset is in the zone set by `search_timezone` (`VOF_SEARCH_TIMEZONE`; default `UTC`, or `local`, or an IANA name), by the wall clock. An invalid value, or the prefixes `ne`, `sa`, `eb`, `ap`, return 400 |
 | `_sort` | `-date` (descending effectiveDateTime) is the only supported value in the MVP |
 | `_count` | Limit result set size; default is all results up to `VOF_STORE_MAX` |
 

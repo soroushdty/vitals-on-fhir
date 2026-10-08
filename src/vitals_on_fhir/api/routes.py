@@ -33,7 +33,7 @@ Must NOT import from ``adapters``, ``validation``, ``pipeline``,
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
@@ -137,6 +137,19 @@ def get_authenticator() -> Authenticator:
     raise RuntimeError("Authenticator dependency is not configured")
 
 
+def get_search_timezone() -> tzinfo | None:
+    """Provide the zone of a ``date`` search value without a UTC offset.
+
+    ``None`` means the host's local zone.  Placeholder overridden via
+    ``app.dependency_overrides``; the zone comes from ``VOF_SEARCH_TIMEZONE``
+    and is resolved in ``cli.py``.
+
+    Raises:
+        RuntimeError: Always, unless overridden by the application factory.
+    """
+    raise RuntimeError("Search timezone dependency is not configured")
+
+
 def get_patient_resource() -> Patient:
     """Provide the startup-built FHIR ``Patient`` resource.
 
@@ -228,15 +241,18 @@ def fhir_response(resource: Resource, status_code: int = 200) -> Response:
     )
 
 
-def _date_range(raw: str) -> tuple[datetime, datetime]:
+def _date_range(raw: str, zone: tzinfo | None) -> tuple[datetime, datetime]:
     """Return the half-open range ``[start, end)`` a FHIR date value covers.
 
     The value's precision sets the range: ``2026`` is the whole year,
     ``2026-10-07`` the whole day, ``2026-10-07T12:00:00`` one second.  A value
-    without a UTC offset is read as UTC.
+    without a UTC offset is in *zone*, by the wall clock: a day is midnight to
+    midnight even when a daylight-saving change makes it 23 or 25 hours.
 
     Args:
         raw: The search value without its prefix.
+        zone: The zone of a value without a UTC offset; ``None`` for the
+            host's local zone.
 
     Returns:
         The timezone-aware ``(start, end)`` of the range.
@@ -251,44 +267,53 @@ def _date_range(raw: str) -> tuple[datetime, datetime]:
         raise ValueError(msg)
     part = match.groupdict()
 
-    tz: timezone = UTC
-    offset = part["offset"]
-    if offset is not None and offset != "Z":
-        sign = -1 if offset[0] == "-" else 1
-        hours, minutes = int(offset[1:3]), int(offset[4:6])
-        tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
-
+    # Build the range as wall-clock times first, then place it in a zone.
     year = int(part["year"])
+    month = int(part["month"] or 1)
+    day = int(part["day"] or 1)
     if part["month"] is None:
-        return datetime(year, 1, 1, tzinfo=tz), datetime(year + 1, 1, 1, tzinfo=tz)
-    month = int(part["month"])
-    if part["day"] is None:
-        start = datetime(year, month, 1, tzinfo=tz)
-        end = datetime(year + month // 12, month % 12 + 1, 1, tzinfo=tz)
-        return start, end
-    day = int(part["day"])
-    if part["hour"] is None:
-        start = datetime(year, month, day, tzinfo=tz)
-        return start, start + timedelta(days=1)
-
-    second = microsecond = 0
-    if part["second"] is None:
-        width = timedelta(minutes=1)
-    elif part["fraction"] is None:
-        second = int(part["second"])
-        width = timedelta(seconds=1)
+        start = datetime(year, 1, 1)
+        end = datetime(year + 1, 1, 1)
+    elif part["day"] is None:
+        start = datetime(year, month, 1)
+        end = datetime(year + month // 12, month % 12 + 1, 1)
+    elif part["hour"] is None:
+        start = datetime(year, month, day)
+        end = start + timedelta(days=1)
     else:
-        second = int(part["second"])
-        digits = part["fraction"][:6]  # datetime resolves microseconds
-        microsecond = int(digits.ljust(6, "0"))
-        width = timedelta(microseconds=10 ** (6 - len(digits)))
-    start = datetime(
-        year, month, day, int(part["hour"]), int(part["minute"]), second, microsecond, tzinfo=tz
-    )
-    return start, start + width
+        second = microsecond = 0
+        if part["second"] is None:
+            width = timedelta(minutes=1)
+        elif part["fraction"] is None:
+            second = int(part["second"])
+            width = timedelta(seconds=1)
+        else:
+            second = int(part["second"])
+            digits = part["fraction"][:6]  # datetime resolves microseconds
+            microsecond = int(digits.ljust(6, "0"))
+            width = timedelta(microseconds=10 ** (6 - len(digits)))
+        start = datetime(
+            year, month, day, int(part["hour"]), int(part["minute"]), second, microsecond
+        )
+        end = start + width
+
+    offset = part["offset"]
+    if offset is not None:
+        if offset == "Z":
+            zone = UTC
+        else:
+            sign = -1 if offset[0] == "-" else 1
+            hours, minutes = int(offset[1:3]), int(offset[4:6])
+            zone = timezone(sign * timedelta(hours=hours, minutes=minutes))
+    if zone is None:
+        # A naive datetime's astimezone() reads it as host local time.
+        return start.astimezone(), end.astimezone()
+    return start.replace(tzinfo=zone), end.replace(tzinfo=zone)
 
 
-def _parse_date_params(values: list[str] | None) -> tuple[datetime | None, datetime | None]:
+def _parse_date_params(
+    values: list[str] | None, zone: tzinfo | None
+) -> tuple[datetime | None, datetime | None]:
     """Translate FHIR ``date`` search parameters into store bounds.
 
     Each value covers the range its precision implies (see
@@ -304,6 +329,8 @@ def _parse_date_params(values: list[str] | None) -> tuple[datetime | None, datet
 
     Args:
         values: Every ``date`` query-parameter value, or ``None``.
+        zone: The zone of a value without a UTC offset; ``None`` for the
+            host's local zone.
 
     Returns:
         ``(date_from, date_before)``: the inclusive lower and exclusive upper
@@ -331,7 +358,7 @@ def _parse_date_params(values: list[str] | None) -> tuple[datetime | None, datet
             if prefix not in _DATE_PREFIXES:
                 msg = "unknown prefix"
                 raise ValueError(msg)
-            start, end = _date_range(raw)
+            start, end = _date_range(raw, zone)
         except (ValueError, OverflowError):
             raise FhirHttpError(
                 status_code=400,
@@ -399,6 +426,7 @@ async def get_metadata() -> Response:
 async def search_observations(
     request: Request,
     store: Annotated[ObservationStore, Depends(get_store)],
+    search_timezone: Annotated[tzinfo | None, Depends(get_search_timezone)],
     code: Annotated[str | None, Query()] = None,
     date: Annotated[list[str] | None, Query()] = None,
     sort: Annotated[str | None, Query(alias="_sort")] = None,
@@ -418,6 +446,8 @@ async def search_observations(
     Args:
         request: The incoming request, used to build absolute ``fullUrl`` values.
         store: The injected observation store.
+        search_timezone: The zone of a ``date`` value without a UTC offset;
+            ``None`` for the host's local zone.
         code: FHIR ``token`` filter on the Observation code.
         date: FHIR ``date`` filters on ``effectiveDateTime``, all of which
             must match.
@@ -434,7 +464,7 @@ async def search_observations(
     from fhir.resources.R4B.bundle import Bundle
 
     system, code_value = _parse_code_param(code)
-    date_from, date_before = _parse_date_params(date)
+    date_from, date_before = _parse_date_params(date, search_timezone)
     sort_desc = sort == "-date"
 
     # ``_count`` limits the page, not the match count: search without it so

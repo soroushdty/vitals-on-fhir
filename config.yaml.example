@@ -58,6 +58,13 @@
 #                       that zone. An unresolvable value fails at startup.
 # timezone: local
 
+# FHIR date search: the zone of a `date` search value without a UTC offset
+# (e.g. ?date=2026-10-07, which covers that whole day in this zone).
+#   "UTC" (default) — the same results whatever the host's zone.
+#   "local"         — the host's zone, as the FHIR search spec suggests.
+#   an IANA name    — e.g. "America/Phoenix". An unresolvable value fails at startup.
+# search_timezone: UTC
+
 # Validation bounds — heart rate (bpm)
 # hr_min: 20
 # hr_max: 250

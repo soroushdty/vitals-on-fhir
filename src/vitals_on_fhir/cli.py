@@ -438,6 +438,7 @@ async def _run(settings: Settings, adapter_spec: str, authenticator: Authenticat
         scenario_control=(
             HeartRateScenarioControl(adapter) if isinstance(adapter, MockAdapter) else None
         ),
+        search_timezone=resolve_timezone(settings.search_timezone),
     )
 
     server = uvicorn.Server(

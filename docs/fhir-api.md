@@ -68,7 +68,7 @@ curl -H "Authorization: Bearer $VOF_API_TOKEN" \
 | Parameter | Behaviour |
 |---|---|
 | `code` | A FHIR token. `8867-4` matches that code in any system; `http://loinc.org\|8867-4` needs the system too; `\|8867-4` matches a coding without a system; `http://loinc.org\|` matches any LOINC-coded Observation. Every coding is searched, so SpO2 is found by `59408-5` or `2708-6` |
-| `date` | Filters `effectiveDateTime`. A value covers the range its precision implies: `2026-10` is the month, `2026-10-07` the day, `2026-10-07T12:00:00Z` one second. The prefixes `eq` (the default), `ge`, `gt`, `le` and `lt` compare that range with the reading's time, so `gt2026-10-07` means from 8 October on. Repeat the parameter for a range: `date=ge2026-10-01&date=lt2026-11-01`. A value without a UTC offset is read as UTC |
+| `date` | Filters `effectiveDateTime`. A value covers the range its precision implies: `2026-10` is the month, `2026-10-07` the day, `2026-10-07T12:00:00Z` one second. The prefixes `eq` (the default), `ge`, `gt`, `le` and `lt` compare that range with the reading's time, so `gt2026-10-07` means from 8 October on. Repeat the parameter for a range: `date=ge2026-10-01&date=lt2026-11-01`. A value without a UTC offset is in the zone set by `VOF_SEARCH_TIMEZONE` (default `UTC`) |
 | `_sort` | `-date` only (newest first) |
 | `_count` | Page size. `Bundle.total` still counts every match |
 

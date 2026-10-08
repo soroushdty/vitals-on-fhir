@@ -159,7 +159,8 @@ def build_capability_statement() -> CapabilityStatement:
                                     "Filter by effectiveDateTime at the precision "
                                     "given; supports the eq, ge, gt, le, and lt "
                                     "prefixes. Repeat for a range. A value "
-                                    "without a UTC offset is read as UTC."
+                                    "without a UTC offset is in the server's "
+                                    "configured search timezone (default UTC)."
                                 ),
                             },
                             {

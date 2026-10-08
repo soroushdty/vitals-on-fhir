@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
+import time
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -59,7 +61,9 @@ def _heart_rates() -> list[VitalSign]:
     ]
 
 
-async def _get(readings: list[VitalSign], query: str) -> httpx.Response:
+async def _get(
+    readings: list[VitalSign], query: str, search_timezone: tzinfo | None = UTC
+) -> httpx.Response:
     """Store *readings* as Observations and return the response to *query*."""
     store = InMemoryObservationStore(max_size=100)
     mapper = ScalarVitalMapper()
@@ -74,6 +78,7 @@ async def _get(readings: list[VitalSign], query: str) -> httpx.Response:
         broadcaster=_FakeBroadcaster(),
         patient=build_patient("local-patient"),
         device=build_device(DeviceInfo(manufacturer="Generic", model="Test", identifiers={})),
+        search_timezone=search_timezone,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -82,9 +87,15 @@ async def _get(readings: list[VitalSign], query: str) -> httpx.Response:
         )
 
 
-def _values(query: str, readings: list[VitalSign] | None = None) -> list[float]:
+def _values(
+    query: str,
+    readings: list[VitalSign] | None = None,
+    search_timezone: tzinfo | None = UTC,
+) -> list[float]:
     """Return the matching readings' values for *query*, oldest first."""
-    response = asyncio.run(_get(_heart_rates() if readings is None else readings, query))
+    response = asyncio.run(
+        _get(_heart_rates() if readings is None else readings, query, search_timezone)
+    )
     assert response.status_code == 200, response.text
     body: dict[str, Any] = json.loads(response.content)
     return sorted(entry["resource"]["valueQuantity"]["value"] for entry in body.get("entry", []))
@@ -158,6 +169,50 @@ def test_date_covers_the_range_its_precision_implies(date: str, expected: list[f
 def test_a_value_without_a_timezone_is_read_as_utc_and_does_not_crash() -> None:
     """``ge2026-10-07T12:00:00`` used to raise a naive/aware ``TypeError`` (a 500)."""
     assert _values("?date=ge2026-10-07T12:00:00") == [62.0, 63.0, 64.0, 65.0, 66.0]
+
+
+@pytest.mark.parametrize(
+    ("date", "expected"),
+    [
+        # 2026-10-07 in Phoenix (UTC-7) is 07:00Z on the 7th to 07:00Z on the 8th.
+        ("2026-10-07", [62.0, 63.0, 64.0, 65.0]),
+        ("2026-10-07T05:00:00", [62.0, 63.0]),
+        # An explicit offset is not affected by the setting.
+        ("2026-10-07T12:00:00Z", [62.0, 63.0]),
+    ],
+)
+def test_a_value_without_an_offset_is_in_the_search_timezone(
+    date: str, expected: list[float]
+) -> None:
+    """``VOF_SEARCH_TIMEZONE`` sets the zone of a value without a UTC offset."""
+    assert _values(f"?date={date}", search_timezone=ZoneInfo("America/Phoenix")) == expected
+
+
+def test_a_day_is_midnight_to_midnight_across_a_dst_change() -> None:
+    """In Berlin, 2026-10-25 lasts 25 hours: 22:00Z on the 24th to 23:00Z on the 25th."""
+    readings: list[VitalSign] = [
+        HeartRate(
+            effective=datetime(2026, 10, 24, 21, 59, 59, tzinfo=UTC), device_id="d", value=1.0
+        ),
+        HeartRate(effective=datetime(2026, 10, 24, 22, 0, 0, tzinfo=UTC), device_id="d", value=2.0),
+        HeartRate(
+            effective=datetime(2026, 10, 25, 22, 59, 59, tzinfo=UTC), device_id="d", value=3.0
+        ),
+        HeartRate(effective=datetime(2026, 10, 25, 23, 0, 0, tzinfo=UTC), device_id="d", value=4.0),
+    ]
+
+    assert _values("?date=2026-10-25", readings, ZoneInfo("Europe/Berlin")) == [2.0, 3.0]
+
+
+def test_local_uses_the_host_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``local`` (``None``) reads a value without an offset in the host's zone."""
+    monkeypatch.setenv("TZ", "America/Phoenix")
+    time.tzset()
+    try:
+        assert _values("?date=2026-10-07", search_timezone=None) == [62.0, 63.0, 64.0, 65.0]
+    finally:
+        monkeypatch.undo()
+        time.tzset()
 
 
 def test_an_unencoded_plus_in_the_offset_is_accepted() -> None:
