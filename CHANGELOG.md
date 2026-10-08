@@ -5,6 +5,27 @@ This file is permanent and is never truncated or rewritten. See `changelog-rules
 
 ---
 
+## [2026-10-08] — Docs describe the current scope
+
+The README, architecture guide and roadmap still described a heart-rate-only
+MVP, although blood pressure, SpO2, temperature and weight have shipped. An
+outside reader who saw only the README concluded the project was heart rate
+only (#40).
+
+- Changed: README opens with a table of the five vital signs (Bluetooth
+  service, adapters, LOINC, UCUM, US Core profile) and states what is tested
+  on hardware and how conformance was last checked; the configuration table
+  lists `VOF_TIMEZONE` and every plausibility bound
+- Changed: `docs/architecture.md` lists the shipped vital signs, adapters,
+  parsers, validators and `MapperRegistry`, with a `ComponentVital` example
+- Changed: `docs/roadmap.md` marks phase 1 delivered and phase 2's four vital
+  signs shipped (the phase stays open per ADR-0001)
+- Changed: `docs/README.md` points to the requirements in
+  `.kiro/steering/product.md` instead of a nonexistent SRS, notes ADR-0003 as
+  reserved, and lists the briefs and all five protocol citations
+- Changed: steering `object-model.md` and `structure.md`, and the
+  `fhir/mappers.py` docstring, no longer call `ComponentVitalMapper` a stub
+
 ## [2026-10-08] — FHIR search semantics, injected mapper registry
 
 Fixes from an outside review of the repository: the FHIR search API now follows

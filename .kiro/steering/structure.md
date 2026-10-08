@@ -66,7 +66,7 @@ vitals-on-fhir/
 │   ├── dashboard/
 │   ├── test_dependency_directions.py   # AST-based; enforces the table below
 │   └── conftest.py
-├── docs/                        # SRS, architecture decisions, protocol sources
+├── docs/                        # guides, ADRs, briefs, protocol sources
 ├── CHANGELOG.md
 ├── NOTICE
 ├── LICENSE
@@ -136,5 +136,5 @@ Run `uv run pytest tests/test_dependency_directions.py` after any cross-package 
 
 - **`CHANGELOG.md`**: permanent record; see `changelog-rules.md` for format.
 - **`NOTICE`**: records EviTrace-ported code and any other third-party inclusions. Required entry format: source project, license, URL, and which files in this repo contain ported material.
-- **`docs/`**: SRS, architecture decision records (ADRs), and protocol source citations. Protocol knowledge must be cited here, not embedded only in code comments.
+- **`docs/`**: guides, architecture decision records (ADRs), briefs, and protocol source citations. The requirements live in `.kiro/steering/product.md`. Protocol knowledge must be cited here, not embedded only in code comments.
 - **`.env.example`**: lists every `VOF_*` variable with a description; never commit a populated `.env`.

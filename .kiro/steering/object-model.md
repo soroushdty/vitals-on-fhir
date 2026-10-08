@@ -17,8 +17,12 @@ The domain model. Depends on nothing else in this project.
 ```
 VitalSign (ABC, frozen dataclass)
 ├── ScalarVital (ABC)
-│   └── HeartRate (concrete)              — LOINC 8867-4
-└── ComponentVital (ABC)                  — roadmap: BloodPressure
+│   ├── HeartRate (concrete)              — LOINC 8867-4
+│   ├── OxygenSaturation (concrete)       — LOINC 59408-5 + 2708-6
+│   ├── BodyTemperature (concrete)        — LOINC 8310-5
+│   └── BodyWeight (concrete)             — LOINC 29463-7
+└── ComponentVital (ABC)
+    └── BloodPressure (concrete)          — LOINC 85354-9 (8480-6, 8462-4)
 ```
 
 ### `VitalSign` (ABC)
@@ -53,7 +57,7 @@ Adds:
 
 ### `ComponentVital` (ABC, subclasses `VitalSign`)
 
-For multi-component readings (e.g. blood pressure: systolic + diastolic). Defines the component structure. No concrete subclass in the MVP; the hierarchy must accommodate it without changes.
+For multi-component readings (e.g. blood pressure: systolic + diastolic). Defines the component structure through `ComponentSpec` metadata. `BloodPressure` is the concrete subclass.
 
 ### `HeartRate` (concrete, `vitals/builtin/`)
 
@@ -201,9 +205,9 @@ class VitalMapper(ABC):
 
 Builds an Observation entirely from `ScalarVital` class metadata (`loinc_code`, `additional_loinc_codes`, `ucum_unit`, `us_core_profile`). A new scalar vital sign needs no mapper code.
 
-### `ComponentVitalMapper` (concrete, roadmap-ready stub)
+### `ComponentVitalMapper` (concrete)
 
-Handles `ComponentVital` subclasses. No concrete vital uses it in the MVP.
+Handles `ComponentVital` subclasses (`BloodPressure`): builds the panel Observation and one `component` per `ComponentSpec`. A new component vital sign needs no mapper code.
 
 ### Mapper registry
 

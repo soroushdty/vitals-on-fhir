@@ -15,7 +15,24 @@
 
 Most wearables lock their data inside proprietary apps and clouds, yet many can speak open Bluetooth standards. `vitals-on-fhir` acquires vital signs from those open channels and exposes them as standards-compliant HL7 FHIR R4 Observations. Any FHIR-capable system (an EHR sandbox, a research pipeline, a caregiver dashboard) can then consume patient-generated vital signs without device-specific integrations. The project focuses on the bridge; downstream apps and analytics are left to whoever consumes the FHIR API.
 
-The MVP acquires real-time heart rate via the standard Bluetooth Heart Rate Service (GATT `0x180D`), one device at a time.
+### What it supports today
+
+Five vital signs, each from a standard Bluetooth health service, each mapped to its US Core vital-signs profile:
+
+| Vital sign | Bluetooth service (GATT) | Adapter: real / simulated | LOINC | Unit (UCUM) | US Core 9 profile |
+|---|---|---|---|---|---|
+| Heart rate | Heart Rate `0x180D` | `miband10` / `mock` | `8867-4` | `/min` | [Heart Rate](https://hl7.org/fhir/us/core/STU9/StructureDefinition-us-core-heart-rate.html) |
+| Blood pressure | Blood Pressure `0x1810` | `bp` / `mock-bp` | `85354-9` panel, with `8480-6` systolic and `8462-4` diastolic components | `mm[Hg]` | [Blood Pressure](https://hl7.org/fhir/us/core/STU9/StructureDefinition-us-core-blood-pressure.html) |
+| Oxygen saturation | Pulse Oximeter `0x1822` | `spo2` / `mock-spo2` | `59408-5` and `2708-6` | `%` | [Pulse Oximetry](https://hl7.org/fhir/us/core/STU9/StructureDefinition-us-core-pulse-oximetry.html) |
+| Body temperature | Health Thermometer `0x1809` | `temp` / `mock-temp` | `8310-5` | `Cel` | [Body Temperature](https://hl7.org/fhir/us/core/STU9/StructureDefinition-us-core-body-temperature.html) |
+| Body weight | Weight Scale `0x181D` | `weight` / `mock-weight` | `29463-7` | `kg` | [Body Weight](https://hl7.org/fhir/us/core/STU9/StructureDefinition-us-core-body-weight.html) |
+
+- **Hardware:** heart rate is tested on a Xiaomi Smart Band 10. The cuff, oximeter, thermometer and scale adapters follow the Bluetooth specifications and are tested without hardware; they have not yet been tried with a specific device. See [device compatibility](docs/device-compatibility.md).
+- **Conformance:** an Observation from each simulated adapter was last checked by hand with the HL7 FHIR validator 6.10.4 against US Core 9.0.0, with no errors ([#17](https://github.com/soroushdty/vitals-on-fhir/issues/17), [ADR-0006](docs/adr-0006-temperature-measurement-site.md)). Running that check in CI is [#42](https://github.com/soroushdty/vitals-on-fhir/issues/42).
+- **Device-reported details are kept or acted on:** measurement time, the thermometer's body site, readings the device flags as unreliable (rejected), and which user of a shared cuff or scale took the reading (only the configured user's readings are kept). See the [decision records](docs/README.md#architecture-decision-records).
+- **Adding a vital sign** means a class that declares its codes, unit and profile, plus an adapter; the existing mappers build its Observations. See [architecture](docs/architecture.md); [#43](https://github.com/soroushdty/vitals-on-fhir/issues/43) measures what each addition took.
+
+The service reads one device at a time and keeps Observations in memory.
 
 ## Quick start
 
@@ -36,7 +53,7 @@ uv run vitals-on-fhir
 
 With no `VOF_API_TOKEN` set, the service starts in **demo mode**: it runs the mock adapter (`mock`, or another `mock-*` adapter you choose), the API and dashboard need no token, and a startup warning says so. A real device always needs a token: `--adapter miband10` without one stops with an error instead of falling back to simulated data. Turn demo mode off with `--no-demo` (or `VOF_DEMO_MODE=false`, or `demo_mode: false` in `config.yaml`) to make a missing token a startup error.
 
-### Using the MVP
+### Using the dashboard
 
 Once the service is running, open **`http://127.0.0.1:8000/`** in a browser. The start page shows the safety and scope notes and asks for your `VOF_API_TOKEN` (in demo mode there is no token field). Press **I understand — connect**: the token is checked, and you'll see the live heart rate, the observation timestamp, the device it came from, and the connection status update in real time. **Home** disconnects and returns to the start page, for example to use a different token. The token is not stored, so a reload asks for it again. The **Light / Dark** switch at the top right picks the colour theme (it follows your system setting until you choose, and remembers the choice in this browser), and **GitHub ↗** opens this repository.
 
@@ -93,7 +110,13 @@ Configuration comes from environment variables (or `.env`), plus an optional YAM
 | `VOF_DEVICE_NAME` | *(none)* | Optional BLE name filter for device discovery: any part of the advertised name, ignoring case (e.g. `Smart Band 10`) |
 | `VOF_DEVICE_USER_ID` | *(none)* | Multi-user BP cuff or scale: the device user (0–254) whose readings are recorded. Other users' readings are rejected, and so is every reading from a multi-user device while this is unset (ADR-0004). Single-user devices ignore it |
 | `VOF_MOCK_INTERVAL` | `1.0` | Seconds between `mock` adapter readings. The simulated rhythm is picked on the dashboard |
-| `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Override the heart-rate plausibility range (bpm) |
+| `VOF_TIMEZONE` | `local` | Zone of a device timestamp that carries none (cuff, thermometer, scale): `local` (the host's zone) or an IANA name such as `America/Phoenix` |
+| `VOF_HR_MIN` / `VOF_HR_MAX` | `20` / `250` | Heart-rate plausibility range (bpm) |
+| `VOF_BP_SYSTOLIC_MIN` / `VOF_BP_SYSTOLIC_MAX` | `50` / `250` | Systolic plausibility range (mmHg) |
+| `VOF_BP_DIASTOLIC_MIN` / `VOF_BP_DIASTOLIC_MAX` | `30` / `150` | Diastolic plausibility range (mmHg) |
+| `VOF_SPO2_MIN` / `VOF_SPO2_MAX` | `70` / `100` | SpO2 plausibility range (%) |
+| `VOF_TEMP_MIN` / `VOF_TEMP_MAX` | `10` / `47` | Body-temperature plausibility range (°C) |
+| `VOF_WEIGHT_MIN` / `VOF_WEIGHT_MAX` | `2` / `650` | Body-weight plausibility range (kg) |
 | `VOF_SEARCH_TIMEZONE` | `UTC` | Zone of a FHIR `date` search value without a UTC offset (`date=2026-10-07` is that day in this zone): `UTC`, `local` (the host's zone), or an IANA name such as `America/Phoenix` |
 | `VOF_PATIENT_ID` | `local-patient` | ID of the local Patient resource |
 | `VOF_STORE_MAX` | `10000` | Maximum Observations kept in memory |
@@ -121,14 +144,15 @@ See [docs/architecture.md](docs/architecture.md) for how the pipeline works, the
 - [docs/device-compatibility.md](docs/device-compatibility.md) — supported devices and standard-channel limitations
 - [docs/roadmap.md](docs/roadmap.md) — planned vital signs, adapters, and integrations
 - [docs/standards-and-related-work.md](docs/standards-and-related-work.md) — standards used and related projects
-- [docs/](docs/) — SRS, decisions, and protocol source citations
+- [docs/](docs/) — decision records (ADRs), briefs, and protocol source citations
+- [`.kiro/steering/`](.kiro/steering/) — requirements ([`product.md`](.kiro/steering/product.md)) and the project's conventions
 
 ## Security & privacy
 
 - The API and dashboard require a bearer token. The one exception is demo mode (no token set), which serves only simulated data; a real device never runs without a token. The service binds to `127.0.0.1` by default; in demo mode on another address, anyone who can reach it can open the dashboard and change the simulated scenario.
-- Observations are kept **in memory only** in the MVP and are lost on restart.
+- Observations are kept **in memory only** and are lost on restart.
 - The Bluetooth Heart Rate Service is **unauthenticated**: while broadcast is enabled, any nearby device can read the heart-rate stream. Disable broadcast when not in use.
-- The MVP is not designed for exposure to untrusted networks and is not HIPAA-compliant. Don't use it with real patient data in production settings.
+- The service is not designed for exposure to untrusted networks and is not HIPAA-compliant. Don't use it with real patient data in production settings.
 
 ## Academic context
 
