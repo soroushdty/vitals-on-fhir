@@ -29,9 +29,7 @@ _SFLOAT_RESERVED_MANTISSAS = frozenset({0x07FF, 0x0800, 0x07FE, 0x0802, 0x0801})
 # Reserved 24-bit mantissa values that do not represent a usable number.
 # (NaN, NRes, +INFINITY, -INFINITY, and the reserved value.) These are the
 # 32-bit FLOAT analogues of the 16-bit SFLOAT reserved set above.
-_FLOAT_RESERVED_MANTISSAS = frozenset(
-    {0x007FFFFF, 0x00800000, 0x007FFFFE, 0x00800002, 0x00800001}
-)
+_FLOAT_RESERVED_MANTISSAS = frozenset({0x007FFFFF, 0x00800000, 0x007FFFFE, 0x00800002, 0x00800001})
 
 
 def decode_sfloat(data: bytes, offset: int) -> float | None:

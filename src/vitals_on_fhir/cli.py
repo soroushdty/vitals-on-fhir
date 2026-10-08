@@ -232,14 +232,10 @@ def _resolve_adapter(
     try:
         adapter_class = getattr(module, class_name)
     except AttributeError as exc:
-        raise RuntimeError(
-            f"Adapter module '{module_path}' has no class '{class_name}'."
-        ) from exc
+        raise RuntimeError(f"Adapter module '{module_path}' has no class '{class_name}'.") from exc
 
     if not (isinstance(adapter_class, type) and issubclass(adapter_class, DeviceAdapter)):
-        raise RuntimeError(
-            f"Adapter '{adapter_spec}' is not a DeviceAdapter subclass."
-        )
+        raise RuntimeError(f"Adapter '{adapter_spec}' is not a DeviceAdapter subclass.")
 
     return adapter_class()
 

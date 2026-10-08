@@ -115,8 +115,8 @@ scope; length-accounted only, design §4):
 ```python
 @dataclass(frozen=True, kw_only=True)
 class BodyTemperature(ScalarVital):
-    loinc_code: ClassVar[str] = "8310-5"          # Body temperature
-    ucum_unit: ClassVar[str] = "Cel"              # UCUM degrees Celsius
+    loinc_code: ClassVar[str] = "8310-5"  # Body temperature
+    ucum_unit: ClassVar[str] = "Cel"  # UCUM degrees Celsius
     us_core_profile: ClassVar[str] = (
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-temperature"
     )
@@ -207,9 +207,8 @@ top mantissa bit `0x800000` is set) and the 8-bit exponent is sign-extended (sub
 
 ```python
 FLOAT_SIZE = 4  # bytes
-_FLOAT_RESERVED_MANTISSAS = frozenset(
-    {0x007FFFFF, 0x00800000, 0x007FFFFE, 0x00800002, 0x00800001}
-)
+_FLOAT_RESERVED_MANTISSAS = frozenset({0x007FFFFF, 0x00800000, 0x007FFFFE, 0x00800002, 0x00800001})
+
 
 def decode_float(data: bytes, offset: int) -> float | None:
     """Decode a 32-bit IEEE-11073 FLOAT at *offset* (little-endian).
@@ -223,9 +222,9 @@ def decode_float(data: bytes, offset: int) -> float | None:
     exponent = raw >> 24
     if mantissa in _FLOAT_RESERVED_MANTISSAS:
         return None
-    if mantissa >= 0x800000:      # sign-extend 24-bit mantissa
+    if mantissa >= 0x800000:  # sign-extend 24-bit mantissa
         mantissa -= 0x1000000
-    if exponent >= 0x80:          # sign-extend 8-bit exponent
+    if exponent >= 0x80:  # sign-extend 8-bit exponent
         exponent -= 0x100
     return float(mantissa) * (10.0**exponent)
 ```
@@ -316,20 +315,21 @@ def __init__(self, device_id: str, now: Callable[[], datetime] | None = None) ->
     self._device_id = device_id
     self._now = now if now is not None else (lambda: datetime.now().astimezone())  # tz-aware local
 
+
 def parse(self, data: bytes) -> VitalSign | None:
     if len(data) < 1:
         return None
     flags = parse_temp_flags(data[0])
     if len(data) < required_length(flags):
         return None
-    temp = decode_float(data, _TEMPERATURE_OFFSET)      # shared FLOAT decoder; offset 1
-    if temp is None:                                     # reserved/unusable → drop
+    temp = decode_float(data, _TEMPERATURE_OFFSET)  # shared FLOAT decoder; offset 1
+    if temp is None:  # reserved/unusable → drop
         return None
     if flags.unit_is_fahrenheit:
         temp = fahrenheit_to_celsius(temp)
     if flags.timestamp_present:
-        effective = decode_timestamp(data, _TIMESTAMP_OFFSET)   # offset 5 (1 + FLOAT_SIZE)
-        if effective is None:                                    # invalid calendar date → drop
+        effective = decode_timestamp(data, _TIMESTAMP_OFFSET)  # offset 5 (1 + FLOAT_SIZE)
+        if effective is None:  # invalid calendar date → drop
             return None
     else:
         effective = self._now()
@@ -349,11 +349,13 @@ A near-exact analogue of `PulseOximeterBleAdapter`: subclasses `DeviceAdapter` d
 `BleConnection` configured for the HTS profile, and delegates the lifecycle:
 
 ```python
-HEALTH_THERMOMETER_SERVICE_UUID = "00001809-0000-1000-8000-00805f9b34fb"      # 0x1809
-TEMPERATURE_MEASUREMENT_UUID    = "00002a1c-0000-1000-8000-00805f9b34fb"      # 0x2A1C
+HEALTH_THERMOMETER_SERVICE_UUID = "00001809-0000-1000-8000-00805f9b34fb"  # 0x1809
+TEMPERATURE_MEASUREMENT_UUID = "00002a1c-0000-1000-8000-00805f9b34fb"  # 0x2A1C
+
 
 class HealthThermometerBleAdapter(DeviceAdapter):
     supported_vitals = (BodyTemperature,)
+
     def __init__(self, *, device_name=None, on_state_change=None, now=None):
         self._now = now
         self._connection = BleConnection(
@@ -364,16 +366,25 @@ class HealthThermometerBleAdapter(DeviceAdapter):
             device_name=device_name,
             on_state_change=on_state_change,
         )
-    def matches(self, advertisement) -> bool: return True     # service-UUID scan is authoritative
+
+    def matches(self, advertisement) -> bool:
+        return True  # service-UUID scan is authoritative
+
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(manufacturer="Generic", model="Health Thermometer",
-                          identifiers={"profile": "org.bluetooth.service.health_thermometer"})
+        return DeviceInfo(
+            manufacturer="Generic",
+            model="Health Thermometer",
+            identifiers={"profile": "org.bluetooth.service.health_thermometer"},
+        )
+
     # state/connect/disconnect/vitals delegate to self._connection
     def _build_parser(self):
         from vitals_on_fhir.adapters.temp_parser import TemperatureMeasurementParser
+
         return TemperatureMeasurementParser(
-            device_id=self.device_info.identifiers["profile"], now=self._now)
+            device_id=self.device_info.identifiers["profile"], now=self._now
+        )
 ```
 
 `bleak` stays lazily imported inside `BleConnection` only (FR-TEMP-4, NFR-TEMP-4). The parser import
@@ -426,11 +437,11 @@ Add a parallel `MockThermometerAdapter` + `ThermometerEmissionMode`, mirroring `
 
 ```python
 class ThermometerEmissionMode(enum.Enum):
-    VALID = "valid"                    # e.g. 37.0 °C, inside the plausible range
-    IMPLAUSIBLE = "implausible"        # outside the plausible range (e.g. 60.0 °C)
-    FAHRENHEIT_SOURCE = "fahrenheit"   # a valid reading whose Celsius value corresponds to a
-                                       # normalized Fahrenheit source (e.g. 98.6 °F → 37.0 °C),
-                                       # exercising the normalization path end to end
+    VALID = "valid"  # e.g. 37.0 °C, inside the plausible range
+    IMPLAUSIBLE = "implausible"  # outside the plausible range (e.g. 60.0 °C)
+    FAHRENHEIT_SOURCE = "fahrenheit"  # a valid reading whose Celsius value corresponds to a
+    # normalized Fahrenheit source (e.g. 98.6 °F → 37.0 °C),
+    # exercising the normalization path end to end
 ```
 
 Notes:
@@ -452,9 +463,9 @@ composition root builds (design §9):
 
 ```python
 scalar_overrides = {
-    HeartRate:        (settings.hr_min,   settings.hr_max),
+    HeartRate: (settings.hr_min, settings.hr_max),
     OxygenSaturation: (settings.spo2_min, settings.spo2_max),
-    BodyTemperature:  (settings.temp_min, settings.temp_max),   # new
+    BodyTemperature: (settings.temp_min, settings.temp_max),  # new
 }
 ```
 

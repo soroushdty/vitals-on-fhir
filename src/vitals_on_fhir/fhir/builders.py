@@ -80,8 +80,7 @@ def build_device(device_info: DeviceInfo) -> Device:
         "deviceName": [{"name": device_info.model, "type": "model-name"}],
     }
     identifiers = [
-        {"system": system, "value": value}
-        for system, value in device_info.identifiers.items()
+        {"system": system, "value": value} for system, value in device_info.identifiers.items()
     ]
     if identifiers:
         data["identifier"] = identifiers
@@ -167,8 +166,7 @@ def build_capability_statement() -> CapabilityStatement:
                                 "name": "_sort",
                                 "type": "special",
                                 "documentation": (
-                                    "Only '-date' (descending effectiveDateTime) "
-                                    "is supported."
+                                    "Only '-date' (descending effectiveDateTime) is supported."
                                 ),
                             },
                             {

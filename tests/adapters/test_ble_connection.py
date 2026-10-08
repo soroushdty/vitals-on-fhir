@@ -72,9 +72,7 @@ class _FakeClient:
     async def connect(self) -> None:
         self.connected = True
 
-    async def start_notify(
-        self, _uuid: str, callback: Callable[[object, bytearray], None]
-    ) -> None:
+    async def start_notify(self, _uuid: str, callback: Callable[[object, bytearray], None]) -> None:
         self.notify_callback = callback
 
     async def stop_notify(self, _uuid: str) -> None:

@@ -123,7 +123,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-DEFAULT_CONFIG_PATH = Path("config.yaml")   # repo-root / working-directory default
+DEFAULT_CONFIG_PATH = Path("config.yaml")  # repo-root / working-directory default
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -207,6 +208,7 @@ naming the invalid value if the string is neither `"local"` nor a resolvable `Zo
 ```python
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+
 def resolve_timezone(name: str) -> ZoneInfo | None:
     """Resolve a `timezone` setting to a tzinfo, or None for host-local."""
     if name == "local":
@@ -231,17 +233,15 @@ change *how the zoneless device timestamp is interpreted*. The change is additiv
 compatible via a defaulted parameter:
 
 ```python
-def decode_timestamp(
-    data: bytes, offset: int, tz: tzinfo | None = None
-) -> datetime | None:
+def decode_timestamp(data: bytes, offset: int, tz: tzinfo | None = None) -> datetime | None:
     # ... decode year..second into the six ints, validate calendar ...
     try:
         naive = datetime(year, month, day, hour, minute, second)
     except ValueError:
         return None
     if tz is None:
-        return naive.astimezone()          # host local -- unchanged default behavior
-    return naive.replace(tzinfo=tz)         # interpret the zoneless value AS being in tz
+        return naive.astimezone()  # host local -- unchanged default behavior
+    return naive.replace(tzinfo=tz)  # interpret the zoneless value AS being in tz
 ```
 
 - **Semantics.** `tz=None` reproduces today's host-local behavior exactly (so every existing parser
@@ -266,6 +266,8 @@ def __init__(self, device_id: str, now=None, tz: tzinfo | None = None) -> None:
     self._tz = tz
     self._now = now if now is not None else (lambda: datetime.now().astimezone())
     ...
+
+
 # in parse():
 effective = decode_timestamp(data, _TIMESTAMP_OFFSET, self._tz)
 ```

@@ -169,9 +169,7 @@ def test_search_by_temperature_code_returns_temperature_observations() -> None:
         await store.add(temp_obs)
         await store.add(hr_obs)
         app = _build_app(store)
-        return await _get(
-            app, f"/fhir/Observation?code={_TEMP_LOINC}", headers=_auth()
-        )
+        return await _get(app, f"/fhir/Observation?code={_TEMP_LOINC}", headers=_auth())
 
     response = _run(scenario())
 
@@ -234,9 +232,7 @@ def test_search_by_temperature_code_empty_when_none_stored() -> None:
     async def scenario() -> httpx.Response:
         await store.add(hr_obs)
         app = _build_app(store)
-        return await _get(
-            app, f"/fhir/Observation?code={_TEMP_LOINC}", headers=_auth()
-        )
+        return await _get(app, f"/fhir/Observation?code={_TEMP_LOINC}", headers=_auth())
 
     response = _run(scenario())
 
@@ -262,9 +258,7 @@ def test_get_temperature_observation_by_id() -> None:
     async def scenario() -> httpx.Response:
         await store.add(temp_obs)
         app = _build_app(store)
-        return await _get(
-            app, f"/fhir/Observation/{temp_obs.id}", headers=_auth()
-        )
+        return await _get(app, f"/fhir/Observation/{temp_obs.id}", headers=_auth())
 
     response = _run(scenario())
 
@@ -311,9 +305,7 @@ def test_capability_statement_reflects_observation_searchability() -> None:
 
     search_param_names = {p["name"] for p in observation["searchParam"]}
     assert "code" in search_param_names
-    code_param = next(
-        p for p in observation["searchParam"] if p["name"] == "code"
-    )
+    code_param = next(p for p in observation["searchParam"] if p["name"] == "code")
     assert code_param["type"] == "token"
 
 
@@ -339,9 +331,7 @@ def test_capability_statement_advertises_no_write_interaction() -> None:
     write_codes = {"create", "update", "patch", "delete"}
     for resource in body["rest"][0]["resource"]:
         codes = {i["code"] for i in resource.get("interaction", [])}
-        assert codes.isdisjoint(write_codes), (
-            f"{resource['type']} advertises a write interaction"
-        )
+        assert codes.isdisjoint(write_codes), f"{resource['type']} advertises a write interaction"
 
 
 def test_post_temperature_observation_is_rejected() -> None:
@@ -356,9 +346,7 @@ def test_post_temperature_observation_is_rejected() -> None:
     store = InMemoryObservationStore(max_size=100)
     app = _build_app(store)
 
-    response = _run(
-        _request(app, "POST", "/fhir/Observation", headers=_auth())
-    )
+    response = _run(_request(app, "POST", "/fhir/Observation", headers=_auth()))
 
     assert response.status_code == 405
     assert response.status_code < 200 or response.status_code >= 300

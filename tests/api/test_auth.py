@@ -184,9 +184,7 @@ def test_correct_token_unknown_id_is_404_not_401() -> None:
     Validates: Requirements FR-12.4.
     """
     app = _build_app()
-    response = _run(
-        _request(app, "/fhir/Observation/does-not-exist", headers=_with_bearer(_TOKEN))
-    )
+    response = _run(_request(app, "/fhir/Observation/does-not-exist", headers=_with_bearer(_TOKEN)))
     assert response.status_code == 404
     assert response.headers["content-type"].startswith(_FHIR_MEDIA_TYPE)
     body = json.loads(response.content)

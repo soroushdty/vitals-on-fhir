@@ -80,9 +80,7 @@ def test_fahrenheit_normalization_correctness(celsius_tenths: int) -> None:
     # Both readings represent the same Celsius temperature.
     assert math.isclose(celsius_result.value, celsius, rel_tol=0.0, abs_tol=1e-9)
     assert math.isclose(fahrenheit_result.value, celsius, rel_tol=1e-9, abs_tol=1e-9)
-    assert math.isclose(
-        celsius_result.value, fahrenheit_result.value, rel_tol=1e-9, abs_tol=1e-9
-    )
+    assert math.isclose(celsius_result.value, fahrenheit_result.value, rel_tol=1e-9, abs_tol=1e-9)
 
 
 # --- Property 2: parser never crashes on arbitrary bytes ----------------------
@@ -193,9 +191,7 @@ def test_parse_temp_flags_temperature_type_bit() -> None:
 def test_parse_temp_flags_all_set() -> None:
     """All three relevant bits set decode to all fields present."""
     byte = (
-        _T41_FLAG_UNIT_FAHRENHEIT
-        | _T41_FLAG_TIMESTAMP_PRESENT
-        | _T41_FLAG_TEMPERATURE_TYPE_PRESENT
+        _T41_FLAG_UNIT_FAHRENHEIT | _T41_FLAG_TIMESTAMP_PRESENT | _T41_FLAG_TEMPERATURE_TYPE_PRESENT
     )
     flags = parse_temp_flags(byte)
     assert flags.unit_is_fahrenheit is True
@@ -234,13 +230,8 @@ def test_required_length_with_temperature_type() -> None:
 
 def test_required_length_with_timestamp_and_temperature_type() -> None:
     """Both optional fields present add both their sizes."""
-    flags = parse_temp_flags(
-        _T41_FLAG_TIMESTAMP_PRESENT | _T41_FLAG_TEMPERATURE_TYPE_PRESENT
-    )
-    assert (
-        required_length(flags)
-        == 1 + FLOAT_SIZE + TIMESTAMP_SIZE + _T41_TEMPERATURE_TYPE_SIZE
-    )
+    flags = parse_temp_flags(_T41_FLAG_TIMESTAMP_PRESENT | _T41_FLAG_TEMPERATURE_TYPE_PRESENT)
+    assert required_length(flags) == 1 + FLOAT_SIZE + TIMESTAMP_SIZE + _T41_TEMPERATURE_TYPE_SIZE
 
 
 def test_required_length_unaffected_by_unit_flag() -> None:

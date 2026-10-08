@@ -57,9 +57,7 @@ def _resolve_adapter_arg(settings: Settings, argv: list[str]) -> str:
 # --- CLI beats env and YAML (design Testing Strategy 4) ---
 
 
-def test_cli_adapter_beats_env_and_yaml(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_adapter_beats_env_and_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An explicit ``--adapter`` wins over a conflicting env var and YAML value."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     _write_yaml(tmp_path / "config.yaml", "adapter: spo2\n")
@@ -173,9 +171,7 @@ def test_no_token_with_demo_mode_off_is_refused() -> None:
 @pytest.mark.parametrize("demo_mode", [True, False])
 def test_a_configured_token_is_always_required(adapter: str, demo_mode: bool) -> None:
     """A set token turns auth on for every adapter, whatever demo mode says."""
-    authenticator = _build_authenticator(
-        Settings(api_token=_TOKEN), adapter, demo_mode=demo_mode
-    )
+    authenticator = _build_authenticator(Settings(api_token=_TOKEN), adapter, demo_mode=demo_mode)
 
     assert isinstance(authenticator, StaticTokenAuthenticator)
     assert authenticator.requires_credentials is True
@@ -186,9 +182,7 @@ def test_a_configured_token_is_always_required(adapter: str, demo_mode: bool) ->
 # --- main(): --demo / --no-demo and the startup error ---
 
 
-def _main_authenticator(
-    monkeypatch: pytest.MonkeyPatch, argv: list[str]
-) -> Authenticator:
+def _main_authenticator(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> Authenticator:
     """Run ``main()`` with *argv* and return the authenticator it would serve with.
 
     ``_run`` is replaced so no server or adapter starts; its arguments are

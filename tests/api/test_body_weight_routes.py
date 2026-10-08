@@ -162,9 +162,7 @@ def test_search_by_weight_code_returns_weight_observations() -> None:
         await store.add(weight_obs)
         await store.add(hr_obs)
         app = _build_app(store)
-        return await _get(
-            app, f"/fhir/Observation?code={_WEIGHT_LOINC}", headers=_auth()
-        )
+        return await _get(app, f"/fhir/Observation?code={_WEIGHT_LOINC}", headers=_auth())
 
     response = _run(scenario())
 
@@ -227,9 +225,7 @@ def test_search_by_weight_code_empty_when_none_stored() -> None:
     async def scenario() -> httpx.Response:
         await store.add(hr_obs)
         app = _build_app(store)
-        return await _get(
-            app, f"/fhir/Observation?code={_WEIGHT_LOINC}", headers=_auth()
-        )
+        return await _get(app, f"/fhir/Observation?code={_WEIGHT_LOINC}", headers=_auth())
 
     response = _run(scenario())
 
@@ -328,9 +324,7 @@ def test_capability_statement_advertises_no_write_interaction() -> None:
     write_codes = {"create", "update", "patch", "delete"}
     for resource in body["rest"][0]["resource"]:
         codes = {i["code"] for i in resource.get("interaction", [])}
-        assert codes.isdisjoint(write_codes), (
-            f"{resource['type']} advertises a write interaction"
-        )
+        assert codes.isdisjoint(write_codes), f"{resource['type']} advertises a write interaction"
 
 
 def test_post_weight_observation_is_rejected() -> None:

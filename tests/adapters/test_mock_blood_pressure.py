@@ -55,27 +55,21 @@ def test_valid_mode_emits_in_range_reading() -> None:
 
 def test_implausible_systolic_mode() -> None:
     """The IMPLAUSIBLE_SYSTOLIC mode emits an out-of-range systolic."""
-    adapter = MockBloodPressureAdapter(
-        BloodPressureEmissionMode.IMPLAUSIBLE_SYSTOLIC, count=1
-    )
+    adapter = MockBloodPressureAdapter(BloodPressureEmissionMode.IMPLAUSIBLE_SYSTOLIC, count=1)
     reading = asyncio.run(_first_reading(adapter))
     assert reading.systolic == 300.0
 
 
 def test_implausible_diastolic_mode() -> None:
     """The IMPLAUSIBLE_DIASTOLIC mode emits an out-of-range diastolic."""
-    adapter = MockBloodPressureAdapter(
-        BloodPressureEmissionMode.IMPLAUSIBLE_DIASTOLIC, count=1
-    )
+    adapter = MockBloodPressureAdapter(BloodPressureEmissionMode.IMPLAUSIBLE_DIASTOLIC, count=1)
     reading = asyncio.run(_first_reading(adapter))
     assert reading.diastolic == 200.0
 
 
 def test_store_and_forward_mode_has_past_effective_time() -> None:
     """The STORE_AND_FORWARD mode emits a reading whose ``effective`` is in the past."""
-    adapter = MockBloodPressureAdapter(
-        BloodPressureEmissionMode.STORE_AND_FORWARD, count=1
-    )
+    adapter = MockBloodPressureAdapter(BloodPressureEmissionMode.STORE_AND_FORWARD, count=1)
     reading = asyncio.run(_first_reading(adapter))
     assert reading.effective < datetime.now(UTC)
     # Comfortably in the past (the mode subtracts several minutes).

@@ -79,8 +79,7 @@ def test_validator_chain_returns_first_rejection(decisions: list[bool]) -> None:
     Validates: Requirements FR-3b.2
     """
     validators: list[Validator] = [
-        _StubValidator(accept=accept, name=f"v{index}")
-        for index, accept in enumerate(decisions)
+        _StubValidator(accept=accept, name=f"v{index}") for index, accept in enumerate(decisions)
     ]
     chain = ValidatorChain(validators)
     reading = _make_reading()
@@ -113,9 +112,7 @@ def test_sensor_contact_validation_over_mock_adapter_modes(mode: str) -> None:
     """
     from vitals_on_fhir.adapters.builtin.mock import EmissionMode, MockAdapter
 
-    emission_mode = (
-        EmissionMode.VALID if mode == "valid" else EmissionMode.NO_SENSOR_CONTACT
-    )
+    emission_mode = EmissionMode.VALID if mode == "valid" else EmissionMode.NO_SENSOR_CONTACT
     reading = MockAdapter(emission_mode=emission_mode)._make_reading()
 
     result = SensorContactValidator().check(reading)
@@ -206,9 +203,7 @@ def test_sensor_contact_validation_rejects_only_explicit_loss(
     low=st.floats(min_value=0.0, max_value=500.0, allow_nan=False, allow_infinity=False),
     high=st.floats(min_value=0.0, max_value=500.0, allow_nan=False, allow_infinity=False),
 )
-def test_plausible_range_matches_in_range_predicate(
-    value: float, low: float, high: float
-) -> None:
+def test_plausible_range_matches_in_range_predicate(value: float, low: float, high: float) -> None:
     """Property 3: accept iff ``min <= value <= max`` for configured and default bounds.
 
     Two variants are checked against the same generated value:

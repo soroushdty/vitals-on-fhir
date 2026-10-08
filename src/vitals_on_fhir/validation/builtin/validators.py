@@ -231,9 +231,7 @@ class ComponentRangeValidator(Validator):
 
         vital_class = type(vital)
         for spec, value in vital.component_values():
-            low, high = self._overrides.get(
-                (vital_class, spec.field_name), spec.default_range
-            )
+            low, high = self._overrides.get((vital_class, spec.field_name), spec.default_range)
             if not (low <= value <= high):
                 return ValidationResult(
                     accepted=False,

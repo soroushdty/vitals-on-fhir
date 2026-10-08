@@ -131,8 +131,8 @@ see requirements Out of scope; length-accounted only, design §3):
 ```python
 @dataclass(frozen=True, kw_only=True)
 class BodyWeight(ScalarVital):
-    loinc_code: ClassVar[str] = "29463-7"          # Body weight
-    ucum_unit: ClassVar[str] = "kg"                # UCUM kilograms
+    loinc_code: ClassVar[str] = "29463-7"  # Body weight
+    ucum_unit: ClassVar[str] = "kg"  # UCUM kilograms
     us_core_profile: ClassVar[str] = (
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-weight"
     )
@@ -188,9 +188,10 @@ resolution *from the flags byte* and, only in the Imperial branch, applies the p
 conversion — both in one pure function so the branch cannot be split or mis-ordered by a caller:
 
 ```python
-_SI_RESOLUTION_KG = 0.005          # kg per raw unit, SI mode
-_IMPERIAL_RESOLUTION_LB = 0.01     # lb per raw unit, Imperial mode
-_LB_TO_KG = 0.45359237             # exact pound → kilogram factor
+_SI_RESOLUTION_KG = 0.005  # kg per raw unit, SI mode
+_IMPERIAL_RESOLUTION_LB = 0.01  # lb per raw unit, Imperial mode
+_LB_TO_KG = 0.45359237  # exact pound → kilogram factor
+
 
 def scale_weight(raw: int, *, imperial: bool) -> float:
     """Scale a raw uint16 Weight Measurement value to kilograms.
@@ -246,6 +247,7 @@ def __init__(self, device_id: str, now: Callable[[], datetime] | None = None) ->
     self._device_id = device_id
     self._now = now if now is not None else (lambda: datetime.now().astimezone())  # tz-aware local
 
+
 def parse(self, data: bytes) -> VitalSign | None:
     if len(data) < 1:
         return None
@@ -255,8 +257,8 @@ def parse(self, data: bytes) -> VitalSign | None:
     raw = int.from_bytes(data[_WEIGHT_OFFSET : _WEIGHT_OFFSET + 2], "little")
     value_kg = scale_weight(raw, imperial=flags.unit_is_imperial)
     if flags.timestamp_present:
-        effective = decode_timestamp(data, _TIMESTAMP_OFFSET)   # offset 3 (1 + weight 2)
-        if effective is None:                                    # invalid calendar date → drop
+        effective = decode_timestamp(data, _TIMESTAMP_OFFSET)  # offset 3 (1 + weight 2)
+        if effective is None:  # invalid calendar date → drop
             return None
     else:
         effective = self._now()
@@ -277,11 +279,13 @@ A near-exact analogue of `HealthThermometerBleAdapter`: subclasses `DeviceAdapte
 `BleConnection` configured for the WSS profile, and delegates the lifecycle:
 
 ```python
-WEIGHT_SCALE_SERVICE_UUID    = "0000181d-0000-1000-8000-00805f9b34fb"      # 0x181D
-WEIGHT_MEASUREMENT_UUID      = "00002a9d-0000-1000-8000-00805f9b34fb"      # 0x2A9D
+WEIGHT_SCALE_SERVICE_UUID = "0000181d-0000-1000-8000-00805f9b34fb"  # 0x181D
+WEIGHT_MEASUREMENT_UUID = "00002a9d-0000-1000-8000-00805f9b34fb"  # 0x2A9D
+
 
 class WeightScaleBleAdapter(DeviceAdapter):
     supported_vitals = (BodyWeight,)
+
     def __init__(self, *, device_name=None, on_state_change=None, now=None):
         self._now = now
         self._connection = BleConnection(
@@ -292,16 +296,25 @@ class WeightScaleBleAdapter(DeviceAdapter):
             device_name=device_name,
             on_state_change=on_state_change,
         )
-    def matches(self, advertisement) -> bool: return True     # service-UUID scan is authoritative
+
+    def matches(self, advertisement) -> bool:
+        return True  # service-UUID scan is authoritative
+
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(manufacturer="Generic", model="Weight Scale",
-                          identifiers={"profile": "org.bluetooth.service.weight_scale"})
+        return DeviceInfo(
+            manufacturer="Generic",
+            model="Weight Scale",
+            identifiers={"profile": "org.bluetooth.service.weight_scale"},
+        )
+
     # state/connect/disconnect/vitals delegate to self._connection
     def _build_parser(self):
         from vitals_on_fhir.adapters.weight_parser import WeightMeasurementParser
+
         return WeightMeasurementParser(
-            device_id=self.device_info.identifiers["profile"], now=self._now)
+            device_id=self.device_info.identifiers["profile"], now=self._now
+        )
 ```
 
 `bleak` stays lazily imported inside `BleConnection` only (FR-WT-4, NFR-WT-4). The parser import inside
@@ -345,11 +358,11 @@ never importing `bleak`:
 
 ```python
 class WeightEmissionMode(enum.Enum):
-    VALID = "valid"                  # e.g. 70.0 kg, inside the plausible range
-    IMPLAUSIBLE = "implausible"      # outside the plausible range (e.g. 900.0 kg)
-    IMPERIAL_SOURCE = "imperial"     # a valid reading whose kilogram value corresponds to a
-                                     # normalized Imperial source (e.g. 154.32 lb → 70.0 kg),
-                                     # exercising the normalization path end to end
+    VALID = "valid"  # e.g. 70.0 kg, inside the plausible range
+    IMPLAUSIBLE = "implausible"  # outside the plausible range (e.g. 900.0 kg)
+    IMPERIAL_SOURCE = "imperial"  # a valid reading whose kilogram value corresponds to a
+    # normalized Imperial source (e.g. 154.32 lb → 70.0 kg),
+    # exercising the normalization path end to end
 ```
 
 Notes:
@@ -368,10 +381,10 @@ validator. Body weight is wired by adding one entry to the map the composition r
 
 ```python
 scalar_overrides = {
-    HeartRate:        (settings.hr_min,     settings.hr_max),
-    OxygenSaturation: (settings.spo2_min,   settings.spo2_max),
-    BodyTemperature:  (settings.temp_min,   settings.temp_max),
-    BodyWeight:       (settings.weight_min, settings.weight_max),   # new
+    HeartRate: (settings.hr_min, settings.hr_max),
+    OxygenSaturation: (settings.spo2_min, settings.spo2_max),
+    BodyTemperature: (settings.temp_min, settings.temp_max),
+    BodyWeight: (settings.weight_min, settings.weight_max),  # new
 }
 ```
 

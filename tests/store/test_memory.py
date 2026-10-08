@@ -141,6 +141,7 @@ def test_store_bound_and_eviction(max_size: int, extra: int) -> None:
 
     asyncio.run(scenario())
 
+
 # Feature: hr-pipeline, Property 12: Search results honor filters, sort, and count
 # Validates: Requirements FR-STORE.4, FR-11
 def test_fresh_store_searches_empty() -> None:

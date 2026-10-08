@@ -208,8 +208,7 @@ class ComponentVitalMapper(VitalMapper):
 
         if not isinstance(vital, ComponentVital):
             raise TypeError(
-                f"ComponentVitalMapper requires a ComponentVital, "
-                f"got {type(vital).__qualname__}."
+                f"ComponentVitalMapper requires a ComponentVital, got {type(vital).__qualname__}."
             )
 
         vital_class = type(vital)

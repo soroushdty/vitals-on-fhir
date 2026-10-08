@@ -78,7 +78,7 @@ class DeviceInfo:
     manufacturer: str
     model: str
     identifiers: dict[str, str]  # e.g. {"bluetooth_address": "AA:BB:CC:DD:EE:FF"}
-    simulated: bool = False      # True for the mock adapters
+    simulated: bool = False  # True for the mock adapters
 ```
 
 Used by adapters to populate the FHIR Device resource. `simulated=True` labels the Device and every Observation from it with the `HTEST` security label (ADR-0002). Expandable for roadmap Device Information Service support.
@@ -254,7 +254,7 @@ class ObservationStore(ABC):
         self,
         *,
         code: str | None = None,
-        system: str | None = None,         # "" = a coding without a system
+        system: str | None = None,  # "" = a coding without a system
         date_from: datetime | None = None,  # inclusive, timezone-aware
         date_before: datetime | None = None,  # exclusive, timezone-aware
         sort_desc: bool = True,
