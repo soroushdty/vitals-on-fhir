@@ -85,9 +85,7 @@ def test_existing_mapper_resolutions_unchanged_after_weight() -> None:
 
 # Feature: weight-body-mass, FR-WT-5 / NFR-WT-3: valid US Core Body Weight
 @given(
-    value=st.floats(
-        min_value=2.0, max_value=650.0, allow_nan=False, allow_infinity=False
-    ),
+    value=st.floats(min_value=2.0, max_value=650.0, allow_nan=False, allow_infinity=False),
     effective=_aware_datetimes,
     issued=_aware_datetimes,
 )
@@ -133,16 +131,12 @@ def test_mapper_produces_valid_body_weight_observation(
 
     # US Core Body Weight profile URL in meta.profile.
     assert observation.meta is not None
-    assert BodyWeight.us_core_profile in [
-        str(profile) for profile in observation.meta.profile
-    ]
+    assert BodyWeight.us_core_profile in [str(profile) for profile in observation.meta.profile]
 
     # Both timestamps present and ISO 8601 parseable.
     assert observation.effectiveDateTime is not None
     assert observation.issued is not None
-    assert isinstance(
-        datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime
-    )
+    assert isinstance(datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime)
     assert isinstance(datetime.fromisoformat(observation.issued.isoformat()), datetime)
 
     # valueQuantity: UCUM system, code and display are the kg unit; value kept.

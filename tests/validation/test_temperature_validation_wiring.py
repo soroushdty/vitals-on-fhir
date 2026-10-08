@@ -103,9 +103,7 @@ def test_per_class_bounds_no_cross_application(
 
     # The bounds that SHOULD be applied: the reading's own class override if
     # present, else its class plausible_range — never another class's bounds.
-    expected_low, expected_high = overrides.get(
-        reading_class, reading_class.plausible_range
-    )
+    expected_low, expected_high = overrides.get(reading_class, reading_class.plausible_range)
     expected_accepted = expected_low <= value <= expected_high
 
     result = validator.check(reading)

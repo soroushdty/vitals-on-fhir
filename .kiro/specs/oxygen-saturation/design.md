@@ -61,7 +61,7 @@ A frozen `ScalarVital`, structurally identical to `HeartRate` but for SpO2. No n
 ```python
 @dataclass(frozen=True, kw_only=True)
 class OxygenSaturation(ScalarVital):
-    loinc_code: ClassVar[str] = "59408-5"   # Oxygen saturation in Arterial blood by Pulse oximetry
+    loinc_code: ClassVar[str] = "59408-5"  # Oxygen saturation in Arterial blood by Pulse oximetry
     ucum_unit: ClassVar[str] = "%"
     us_core_profile: ClassVar[str] = (
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-pulse-oximetry"
@@ -93,6 +93,7 @@ into a small pure-function module:
 # adapters/sfloat.py
 _SFLOAT_SIZE = 2
 _SFLOAT_RESERVED_MANTISSAS = frozenset({0x07FF, 0x0800, 0x07FE, 0x0802, 0x0801})
+
 
 def decode_sfloat(data: bytes, offset: int) -> float | None:
     """Decode a 16-bit IEEE-11073 SFLOAT at *offset* (little-endian).
@@ -142,17 +143,22 @@ def required_length(flags: PlxFlags) -> int       # 1 + 2 SFLOATs(4) + optional 
 `PlxContinuousMeasurementParser(GattCharacteristicParser)`:
 
 ```python
-def __init__(self, device_id: str, now: Callable[[], datetime] | None = None): ...
+def __init__(self, device_id: str, now: Callable[[], datetime] | None = None):
+    ...
     # now defaults to lambda: datetime.now(UTC)  (tz-aware), injectable for tests
 
+
 def parse(self, data: bytes) -> VitalSign | None:
-    if len(data) < 1: return None
+    if len(data) < 1:
+        return None
     flags = parse_plx_flags(data[0])
-    if len(data) < required_length(flags): return None
-    spo2 = decode_sfloat(data, _SPO2_OFFSET)          # shared decoder
-    if spo2 is None: return None                       # reserved/unusable → drop
+    if len(data) < required_length(flags):
+        return None
+    spo2 = decode_sfloat(data, _SPO2_OFFSET)  # shared decoder
+    if spo2 is None:
+        return None  # reserved/unusable → drop
     return OxygenSaturation(
-        effective=self._now(),                         # no timestamp in continuous char.
+        effective=self._now(),  # no timestamp in continuous char.
         device_id=self._device_id,
         value=spo2,
     )
@@ -175,11 +181,13 @@ A near-exact analogue of `BloodPressureBleAdapter`: subclasses `DeviceAdapter` d
 `BleConnection` configured for the PLX profile, and delegates the lifecycle:
 
 ```python
-PULSE_OXIMETER_SERVICE_UUID = "00001822-0000-1000-8000-00805f9b34fb"          # 0x1822
-PLX_CONTINUOUS_MEASUREMENT_UUID = "00002a5f-0000-1000-8000-00805f9b34fb"      # 0x2A5F
+PULSE_OXIMETER_SERVICE_UUID = "00001822-0000-1000-8000-00805f9b34fb"  # 0x1822
+PLX_CONTINUOUS_MEASUREMENT_UUID = "00002a5f-0000-1000-8000-00805f9b34fb"  # 0x2A5F
+
 
 class PulseOximeterBleAdapter(DeviceAdapter):
     supported_vitals = (OxygenSaturation,)
+
     def __init__(self, *, device_name=None, on_state_change=None, now=None):
         self._now = now
         self._connection = BleConnection(
@@ -190,16 +198,25 @@ class PulseOximeterBleAdapter(DeviceAdapter):
             device_name=device_name,
             on_state_change=on_state_change,
         )
-    def matches(self, advertisement) -> bool: return True   # service-UUID scan is authoritative
+
+    def matches(self, advertisement) -> bool:
+        return True  # service-UUID scan is authoritative
+
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(manufacturer="Generic", model="Pulse Oximeter",
-                          identifiers={"profile": "org.bluetooth.service.pulse_oximeter"})
+        return DeviceInfo(
+            manufacturer="Generic",
+            model="Pulse Oximeter",
+            identifiers={"profile": "org.bluetooth.service.pulse_oximeter"},
+        )
+
     # state/connect/disconnect/vitals delegate to self._connection
     def _build_parser(self):
         from vitals_on_fhir.adapters.plx_parser import PlxContinuousMeasurementParser
+
         return PlxContinuousMeasurementParser(
-            device_id=self.device_info.identifiers["profile"], now=self._now)
+            device_id=self.device_info.identifiers["profile"], now=self._now
+        )
 ```
 
 `bleak` stays lazily imported inside `BleConnection` only (FR-SPO2-4). The parser import inside
@@ -232,6 +249,7 @@ translated to `{HeartRate: (hr_min, hr_max)}` so existing construction and tests
 ```python
 class PlausibleRangeValidator(Validator):
     name = "plausible_range"
+
     def __init__(
         self,
         hr_min: float | None = None,
@@ -243,14 +261,18 @@ class PlausibleRangeValidator(Validator):
         # Back-compat: a bare (hr_min, hr_max) maps to a HeartRate override.
         if hr_min is not None and hr_max is not None:
             from vitals_on_fhir.vitals.builtin.heart_rate import HeartRate
+
             self._overrides.setdefault(HeartRate, (hr_min, hr_max))
 
     def check(self, vital):
         if not isinstance(vital, ScalarVital):
             return accepted
         low, high = self._overrides.get(type(vital), vital.plausible_range)
-        if low <= vital.value <= high: return accepted
-        return rejected(reason=f"value outside plausible range [{low}, {high}]")  # no value name-only
+        if low <= vital.value <= high:
+            return accepted
+        return rejected(
+            reason=f"value outside plausible range [{low}, {high}]"
+        )  # no value name-only
 ```
 
 Notes:
@@ -317,12 +339,14 @@ grows by two (see the checkpoint update in `docs/brief-config-file.md`).
       HeartRate: (settings.hr_min, settings.hr_max),
       OxygenSaturation: (settings.spo2_min, settings.spo2_max),
   }
-  chain = ValidatorChain([
-      PlausibleRangeValidator(overrides=scalar_overrides),
-      SensorContactValidator(),
-      ComponentRangeValidator(bp_overrides),
-      DuplicateValidator(),
-  ])
+  chain = ValidatorChain(
+      [
+          PlausibleRangeValidator(overrides=scalar_overrides),
+          SensorContactValidator(),
+          ComponentRangeValidator(bp_overrides),
+          DuplicateValidator(),
+      ]
+  )
   ```
   This replaces the current `PlausibleRangeValidator(settings.hr_min, settings.hr_max)` construction.
   Order is unchanged; each validator no-ops for vitals it doesn't handle.
@@ -336,8 +360,9 @@ Add a parallel `MockOximeterAdapter` + `OximeterEmissionMode`, mirroring `MockAd
 
 ```python
 class OximeterEmissionMode(enum.Enum):
-    VALID = "valid"              # e.g. 98%
+    VALID = "valid"  # e.g. 98%
     IMPLAUSIBLE = "implausible"  # below the plausible lower bound (e.g. 50%)
+
 
 class MockOximeterAdapter(DeviceAdapter):
     supported_vitals = (OxygenSaturation,)

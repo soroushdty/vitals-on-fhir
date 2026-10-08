@@ -74,9 +74,10 @@ fields on the concrete subclass.
 @dataclass(frozen=True)
 class ComponentSpec:
     """Binds one component of a ComponentVital to its vocabulary and value field."""
-    field_name: str   # name of the instance attribute holding the value
-    loinc_code: str   # component LOINC (e.g. "8480-6" systolic)
-    ucum_unit: str    # component UCUM unit (e.g. "mm[Hg]")
+
+    field_name: str  # name of the instance attribute holding the value
+    loinc_code: str  # component LOINC (e.g. "8480-6" systolic)
+    ucum_unit: str  # component UCUM unit (e.g. "mm[Hg]")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -89,6 +90,7 @@ class ComponentVital(VitalSign):
       - ``components``     : an ordered tuple of ComponentSpec (this ClassVar)
     and one instance field per ComponentSpec.field_name carrying that value.
     """
+
     components: ClassVar[tuple[ComponentSpec, ...]]
 
     def component_values(self) -> tuple[tuple[ComponentSpec, float], ...]:
@@ -116,12 +118,12 @@ non-FHIR mapper is a thin loop (NFR-HH-3). `component_values()` is the neutral i
 ```python
 @dataclass(frozen=True, kw_only=True)
 class BloodPressure(ComponentVital):
-    loinc_code: ClassVar[str] = "85354-9"                    # BP panel
+    loinc_code: ClassVar[str] = "85354-9"  # BP panel
     us_core_profile: ClassVar[str] = (
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"
     )
     components: ClassVar[tuple[ComponentSpec, ...]] = (
-        ComponentSpec(field_name="systolic",  loinc_code="8480-6", ucum_unit="mm[Hg]"),
+        ComponentSpec(field_name="systolic", loinc_code="8480-6", ucum_unit="mm[Hg]"),
         ComponentSpec(field_name="diastolic", loinc_code="8462-4", ucum_unit="mm[Hg]"),
     )
     systolic: float
@@ -155,6 +157,7 @@ class BleConnection:
     Not an ABC and not a DeviceAdapter — a reusable unit that concrete adapters
     hold by composition. Imports ``bleak`` lazily inside methods only.
     """
+
     def __init__(
         self,
         *,
@@ -170,7 +173,7 @@ class BleConnection:
     def state(self) -> ConnectionState: ...
     async def connect(self) -> None: ...
     async def disconnect(self) -> None: ...
-    def vitals(self) -> AsyncIterator[VitalSign]: ...   # queue-drain + parse + drop-None
+    def vitals(self) -> AsyncIterator[VitalSign]: ...  # queue-drain + parse + drop-None
 ```
 
 `BleHeartRateAdapter` **keeps its exact public surface** (name in `__all__`, abstract `matches`/
@@ -197,14 +200,17 @@ Subclasses `DeviceAdapter` directly, composes a `BleConnection` configured for t
 ```python
 class BloodPressureBleAdapter(DeviceAdapter):
     supported_vitals = (BloodPressure,)
-    def __init__(self, *, device_name=None, on_state_change=None, now=None): 
+
+    def __init__(self, *, device_name=None, on_state_change=None, now=None):
         self._conn = BleConnection(
-            service_uuid=BLOOD_PRESSURE_SERVICE_UUID,          # 0x1810
-            characteristic_uuid=BLOOD_PRESSURE_MEASUREMENT_UUID,# 0x2A35
+            service_uuid=BLOOD_PRESSURE_SERVICE_UUID,  # 0x1810
+            characteristic_uuid=BLOOD_PRESSURE_MEASUREMENT_UUID,  # 0x2A35
             matches=self._matches,
             parser_factory=lambda: BloodPressureMeasurementParser(self._device_id(), now),
-            device_name=device_name, on_state_change=on_state_change,
+            device_name=device_name,
+            on_state_change=on_state_change,
         )
+
     # device_info, state, connect, disconnect, vitals delegate to self._conn / declared here
 ```
 
@@ -306,14 +312,17 @@ class ComponentRangeValidator(Validator):
     (wired from VOF_BP_* config in cli.py); otherwise from the ComponentSpec
     default_range. Non-component vitals pass through.
     """
+
     name = "component_range"
+
     def __init__(self, overrides: dict[tuple[type, str], tuple[float, float]] | None = None): ...
     def check(self, vital):
-        if not isinstance(vital, ComponentVital): 
+        if not isinstance(vital, ComponentVital):
             return accepted
         for spec, value in vital.component_values():
             low, high = overrides.get((type(vital), spec.field_name), spec.default_range)
-            if not (low <= value <= high): return rejected(...)  # reason has no value
+            if not (low <= value <= high):
+                return rejected(...)  # reason has no value
         return accepted
 ```
 
@@ -341,7 +350,7 @@ if isinstance(vital, ScalarVital):
 elif isinstance(vital, ComponentVital):
     key = (vital.device_id, vital.effective, vital.component_values())
 else:
-    return accepted   # unknown shape: don't dedupe
+    return accepted  # unknown shape: don't dedupe
 ```
 
 ### 8. Configuration — `config.py` + `.env.example` (FR-HH-7)
@@ -381,10 +390,11 @@ parallel `MockBloodPressureAdapter` in the same module, same structure, emitting
 
 ```python
 class BloodPressureEmissionMode(enum.Enum):
-    VALID = "valid"                 # 118/76
-    IMPLAUSIBLE_SYSTOLIC = "..."    # systolic above bound
-    IMPLAUSIBLE_DIASTOLIC = "..."   # diastolic above bound
-    STORE_AND_FORWARD = "..."       # effective set in the past (issued != effective)
+    VALID = "valid"  # 118/76
+    IMPLAUSIBLE_SYSTOLIC = "..."  # systolic above bound
+    IMPLAUSIBLE_DIASTOLIC = "..."  # diastolic above bound
+    STORE_AND_FORWARD = "..."  # effective set in the past (issued != effective)
+
 
 class MockBloodPressureAdapter(DeviceAdapter):
     supported_vitals = (BloodPressure,)

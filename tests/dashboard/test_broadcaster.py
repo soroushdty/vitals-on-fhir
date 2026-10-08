@@ -67,13 +67,9 @@ def _make_observation(value: float, device_id: str = "dev-1") -> Observation:
 @settings(max_examples=100)
 @given(
     client_count=st.integers(min_value=0, max_value=8),
-    value=st.floats(
-        min_value=20.0, max_value=250.0, allow_nan=False, allow_infinity=False
-    ),
+    value=st.floats(min_value=20.0, max_value=250.0, allow_nan=False, allow_infinity=False),
 )
-def test_broadcaster_fans_out_fhir_json_to_every_client(
-    client_count: int, value: float
-) -> None:
+def test_broadcaster_fans_out_fhir_json_to_every_client(client_count: int, value: float) -> None:
     """Property 16: every registered client receives one round-tripping observation envelope.
 
     After ``publish``, each of the ``client_count`` registered fake clients has
@@ -104,9 +100,7 @@ def test_broadcaster_fans_out_fhir_json_to_every_client(
             resource_json = json.dumps(envelope["resource"])
             parsed = Observation.model_validate_json(resource_json)
             assert parsed.id == observation.id
-            assert float(parsed.valueQuantity.value) == float(
-                observation.valueQuantity.value
-            )
+            assert float(parsed.valueQuantity.value) == float(observation.valueQuantity.value)
             assert parsed.code.coding[0].code == observation.code.coding[0].code
 
     asyncio.run(scenario())

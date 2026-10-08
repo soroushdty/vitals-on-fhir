@@ -27,9 +27,7 @@ from datetime import datetime, tzinfo
 TIMESTAMP_SIZE = 7  # bytes
 
 
-def decode_timestamp(
-    data: bytes, offset: int, tz: tzinfo | None = None
-) -> datetime | None:
+def decode_timestamp(data: bytes, offset: int, tz: tzinfo | None = None) -> datetime | None:
     """Decode the 7-byte org.bluetooth date-time at *offset* as a tz-aware datetime.
 
     Layout: year (uint16 little-endian), month, day, hours, minutes, seconds

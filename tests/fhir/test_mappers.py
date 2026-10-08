@@ -75,11 +75,7 @@ def test_unregistered_scalar_vital_resolves_to_scalar_mapper() -> None:
 
 
 # Feature: hr-pipeline, Property 9: Mapper resolves via the MRO
-@given(
-    vital_class=st.sampled_from(
-        [_UnregisteredScalarVital, _AnotherUnregisteredScalarVital]
-    )
-)
+@given(vital_class=st.sampled_from([_UnregisteredScalarVital, _AnotherUnregisteredScalarVital]))
 def test_scalar_vital_subclasses_resolve_via_mro(
     vital_class: type[ScalarVital],
 ) -> None:
@@ -121,9 +117,7 @@ def test_scalar_vital_subclasses_resolve_via_mro(
 # Feature: hr-pipeline, Property 8: Observation ids are unique
 @given(
     values=st.lists(
-        st.floats(
-            min_value=20.0, max_value=250.0, allow_nan=False, allow_infinity=False
-        ),
+        st.floats(min_value=20.0, max_value=250.0, allow_nan=False, allow_infinity=False),
         min_size=1,
         max_size=50,
     )
@@ -168,9 +162,7 @@ _aware_datetimes = st.datetimes(
 # Feature: hr-pipeline, Property 7: Mapper produces a valid US Core Observation
 @settings(max_examples=200)
 @given(
-    value=st.floats(
-        min_value=0.0, max_value=1000.0, allow_nan=False, allow_infinity=False
-    ),
+    value=st.floats(min_value=0.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
     sensor_contact=st.sampled_from([True, False, None]),
     effective=_aware_datetimes,
     issued=_aware_datetimes,
@@ -222,9 +214,7 @@ def test_mapper_produces_valid_us_core_observation(
 
     # Construction itself is the FHIR validity check: an invalid resource would
     # raise a pydantic ValidationError here.
-    observation = ScalarVitalMapper().to_observation(
-        reading, patient_ref, device_ref, issued
-    )
+    observation = ScalarVitalMapper().to_observation(reading, patient_ref, device_ref, issued)
 
     assert observation.get_resource_type() == "Observation"
     assert observation.status == "final"
@@ -245,9 +235,7 @@ def test_mapper_produces_valid_us_core_observation(
     # Both timestamps present and ISO 8601 parseable.
     assert observation.effectiveDateTime is not None
     assert observation.issued is not None
-    assert isinstance(
-        datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime
-    )
+    assert isinstance(datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime)
     assert isinstance(datetime.fromisoformat(observation.issued.isoformat()), datetime)
 
     # Subject and device references.
@@ -302,9 +290,7 @@ def test_existing_mapper_resolutions_unchanged() -> None:
 
 # Feature: oxygen-saturation, FR-SPO2-5 / NFR-SPO2-3: valid US Core Pulse Oximetry
 @given(
-    value=st.floats(
-        min_value=70.0, max_value=100.0, allow_nan=False, allow_infinity=False
-    ),
+    value=st.floats(min_value=70.0, max_value=100.0, allow_nan=False, allow_infinity=False),
     effective=_aware_datetimes,
     issued=_aware_datetimes,
 )

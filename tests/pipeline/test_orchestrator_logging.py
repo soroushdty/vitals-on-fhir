@@ -165,9 +165,7 @@ def _is_distinctive(value: float) -> bool:
     )
 
 
-def _assert_value_absent_from_info_logs(
-    records: list[logging.LogRecord], value: float
-) -> None:
+def _assert_value_absent_from_info_logs(records: list[logging.LogRecord], value: float) -> None:
     """Assert no INFO+ record's message contains any rendering of *value*."""
     needles = _value_renderings(value)
     for record in records:
@@ -176,8 +174,7 @@ def _assert_value_absent_from_info_logs(
         message = record.getMessage()
         for needle in needles:
             assert needle not in message, (
-                f"measurement value {needle!r} leaked into an "
-                f"{record.levelname} log: {message!r}"
+                f"measurement value {needle!r} leaked into an {record.levelname} log: {message!r}"
             )
 
 

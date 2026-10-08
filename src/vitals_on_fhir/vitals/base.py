@@ -228,9 +228,7 @@ class ComponentVital(VitalSign):
             A tuple of ``(ComponentSpec, float)`` pairs, one per declared
             component, in the order the components were declared.
         """
-        return tuple(
-            (spec, float(getattr(self, spec.field_name))) for spec in self.components
-        )
+        return tuple((spec, float(getattr(self, spec.field_name))) for spec in self.components)
 
 
 def _check_component_specs(cls: type) -> None:

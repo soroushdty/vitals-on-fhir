@@ -83,9 +83,7 @@ def test_existing_mapper_resolutions_unchanged_after_temperature() -> None:
 
 # Feature: body-temperature, FR-TEMP-5 / NFR-TEMP-3: valid US Core Body Temperature
 @given(
-    value=st.floats(
-        min_value=10.0, max_value=47.0, allow_nan=False, allow_infinity=False
-    ),
+    value=st.floats(min_value=10.0, max_value=47.0, allow_nan=False, allow_infinity=False),
     effective=_aware_datetimes,
     issued=_aware_datetimes,
 )
@@ -131,16 +129,12 @@ def test_mapper_produces_valid_body_temperature_observation(
 
     # US Core Body Temperature profile URL in meta.profile.
     assert observation.meta is not None
-    assert BodyTemperature.us_core_profile in [
-        str(profile) for profile in observation.meta.profile
-    ]
+    assert BodyTemperature.us_core_profile in [str(profile) for profile in observation.meta.profile]
 
     # Both timestamps present and ISO 8601 parseable.
     assert observation.effectiveDateTime is not None
     assert observation.issued is not None
-    assert isinstance(
-        datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime
-    )
+    assert isinstance(datetime.fromisoformat(observation.effectiveDateTime.isoformat()), datetime)
     assert isinstance(datetime.fromisoformat(observation.issued.isoformat()), datetime)
 
     # valueQuantity: UCUM system, code and display are the Cel unit; value kept.

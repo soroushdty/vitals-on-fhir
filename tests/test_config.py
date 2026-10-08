@@ -60,9 +60,7 @@ def test_env_file_populates_non_required_fields(
     """Non-required ``VOF_*`` values in ``.env`` override the field defaults."""
     _write_env(
         tmp_path,
-        "VOF_API_TOKEN=test-token-do-not-use\n"
-        "VOF_ADAPTER=miband10\n"
-        "VOF_PORT=9000\n",
+        "VOF_API_TOKEN=test-token-do-not-use\nVOF_ADAPTER=miband10\nVOF_PORT=9000\n",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -101,9 +99,7 @@ def test_missing_token_is_none_and_demo_mode_defaults_on(
     assert settings.demo_mode is True
 
 
-def test_empty_token_counts_as_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_empty_token_counts_as_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_API_TOKEN=`` is treated as no token, not as an empty password."""
     _write_env(tmp_path, "VOF_API_TOKEN=\n")
     monkeypatch.chdir(tmp_path)
@@ -111,9 +107,7 @@ def test_empty_token_counts_as_missing(
     assert Settings().api_token is None
 
 
-def test_empty_device_name_is_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_empty_device_name_is_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_DEVICE_NAME=`` means "no filter", not "a device named ''"."""
     _write_env(tmp_path, "VOF_DEVICE_NAME=\n")
     monkeypatch.chdir(tmp_path)
@@ -186,9 +180,7 @@ def test_copied_env_example_matches_the_defaults(
     assert from_example.adapter == "mock"
 
 
-def test_bp_bounds_default_when_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_bp_bounds_default_when_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``VOF_BP_*`` bounds fall back to their declared defaults when unset."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
@@ -201,9 +193,7 @@ def test_bp_bounds_default_when_unset(
     assert settings.bp_diastolic_max == 150.0
 
 
-def test_bp_bounds_load_from_env_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_bp_bounds_load_from_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_BP_*`` values in ``.env`` override the defaults."""
     _write_env(
         tmp_path,
@@ -223,9 +213,7 @@ def test_bp_bounds_load_from_env_file(
     assert settings.bp_diastolic_max == 130.0
 
 
-def test_spo2_bounds_default_when_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_spo2_bounds_default_when_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``VOF_SPO2_*`` bounds fall back to their declared defaults when unset."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
@@ -236,15 +224,11 @@ def test_spo2_bounds_default_when_unset(
     assert settings.spo2_max == 100.0
 
 
-def test_spo2_bounds_load_from_env_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_spo2_bounds_load_from_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_SPO2_*`` values in ``.env`` override the defaults."""
     _write_env(
         tmp_path,
-        "VOF_API_TOKEN=test-token-do-not-use\n"
-        "VOF_SPO2_MIN=85\n"
-        "VOF_SPO2_MAX=99\n",
+        "VOF_API_TOKEN=test-token-do-not-use\nVOF_SPO2_MIN=85\nVOF_SPO2_MAX=99\n",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -254,9 +238,7 @@ def test_spo2_bounds_load_from_env_file(
     assert settings.spo2_max == 99.0
 
 
-def test_temp_bounds_default_when_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_temp_bounds_default_when_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``VOF_TEMP_*`` bounds fall back to their declared defaults when unset."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
@@ -267,15 +249,11 @@ def test_temp_bounds_default_when_unset(
     assert settings.temp_max == 47.0
 
 
-def test_temp_bounds_load_from_env_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_temp_bounds_load_from_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_TEMP_*`` values in ``.env`` override the defaults."""
     _write_env(
         tmp_path,
-        "VOF_API_TOKEN=test-token-do-not-use\n"
-        "VOF_TEMP_MIN=15\n"
-        "VOF_TEMP_MAX=45\n",
+        "VOF_API_TOKEN=test-token-do-not-use\nVOF_TEMP_MIN=15\nVOF_TEMP_MAX=45\n",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -285,9 +263,7 @@ def test_temp_bounds_load_from_env_file(
     assert settings.temp_max == 45.0
 
 
-def test_weight_bounds_default_when_unset(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_weight_bounds_default_when_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``VOF_WEIGHT_*`` bounds fall back to their declared defaults when unset."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
@@ -298,15 +274,11 @@ def test_weight_bounds_default_when_unset(
     assert settings.weight_max == 650.0
 
 
-def test_weight_bounds_load_from_env_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_weight_bounds_load_from_env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``VOF_WEIGHT_*`` values in ``.env`` override the defaults."""
     _write_env(
         tmp_path,
-        "VOF_API_TOKEN=test-token-do-not-use\n"
-        "VOF_WEIGHT_MIN=3\n"
-        "VOF_WEIGHT_MAX=500\n",
+        "VOF_API_TOKEN=test-token-do-not-use\nVOF_WEIGHT_MIN=3\nVOF_WEIGHT_MAX=500\n",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -316,9 +288,7 @@ def test_weight_bounds_load_from_env_file(
     assert settings.weight_max == 500.0
 
 
-def test_unknown_vof_variable_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_unknown_vof_variable_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An unknown ``VOF_*`` variable is rejected (``extra = "forbid"``)."""
     _write_env(
         tmp_path,
@@ -338,9 +308,7 @@ def _write_yaml(directory: Path, contents: str) -> None:
     (directory / "config.yaml").write_text(contents, encoding="utf-8")
 
 
-def test_absent_config_file_is_a_noop(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_absent_config_file_is_a_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With no ``config.yaml`` present, behaviour matches env/default-only.
 
     The absent file is not an error and contributes no values (FR-CFG-1).
@@ -368,9 +336,7 @@ def test_yaml_supplies_value_when_env_unset(
     assert settings.hr_min == 30.0
 
 
-def test_env_beats_yaml_for_same_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_env_beats_yaml_for_same_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An environment variable wins over a conflicting YAML value (FR-CFG-2)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     _write_yaml(tmp_path, "hr_min: 30\n")
@@ -382,9 +348,7 @@ def test_env_beats_yaml_for_same_key(
     assert settings.hr_min == 40.0
 
 
-def test_unknown_yaml_key_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_unknown_yaml_key_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An unknown key in ``config.yaml`` fails at startup naming the key (FR-CFG-3)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     _write_yaml(tmp_path, "bogus: 1\n")
@@ -394,9 +358,7 @@ def test_unknown_yaml_key_is_rejected(
         Settings()
 
 
-def test_malformed_yaml_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_malformed_yaml_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Unparseable ``config.yaml`` fails at startup, not a silent fallback (FR-CFG-3)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     _write_yaml(tmp_path, "hr_min: [unbalanced\n")
@@ -407,9 +369,7 @@ def test_malformed_yaml_is_rejected(
         Settings()
 
 
-def test_top_level_list_yaml_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_top_level_list_yaml_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A top-level list (not a mapping) in ``config.yaml`` is rejected (FR-CFG-3)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     _write_yaml(tmp_path, "- one\n- two\n")
@@ -421,9 +381,7 @@ def test_top_level_list_yaml_is_rejected(
         Settings()
 
 
-def test_timezone_default_is_local(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_timezone_default_is_local(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``timezone`` setting defaults to ``local`` (FR-CFG-4)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)
@@ -445,9 +403,7 @@ def test_valid_explicit_timezone_constructs(
     assert Settings().timezone == "America/Phoenix"
 
 
-def test_invalid_timezone_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_invalid_timezone_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An unresolvable ``timezone`` fails at startup naming the value (FR-CFG-4)."""
     _write_env(tmp_path, "VOF_API_TOKEN=test-token-do-not-use\n")
     monkeypatch.chdir(tmp_path)

@@ -98,9 +98,7 @@ def test_per_class_bounds_no_cross_application(
     validator = PlausibleRangeValidator(overrides=overrides)
     reading = _reading(reading_class, value)
 
-    expected_low, expected_high = overrides.get(
-        reading_class, reading_class.plausible_range
-    )
+    expected_low, expected_high = overrides.get(reading_class, reading_class.plausible_range)
     expected_accepted = expected_low <= value <= expected_high
 
     result = validator.check(reading)
@@ -196,9 +194,7 @@ def test_body_weight_duplicate_is_rejected() -> None:
 
     # Differing in value → not a duplicate.
     assert (
-        validator.check(
-            BodyWeight(effective=_EFFECTIVE, device_id="dev-1", value=70.5)
-        ).accepted
+        validator.check(BodyWeight(effective=_EFFECTIVE, device_id="dev-1", value=70.5)).accepted
         is True
     )
     # Differing in effective → not a duplicate.
@@ -214,8 +210,6 @@ def test_body_weight_duplicate_is_rejected() -> None:
     )
     # Differing in device_id → not a duplicate.
     assert (
-        validator.check(
-            BodyWeight(effective=_EFFECTIVE, device_id="dev-2", value=70.0)
-        ).accepted
+        validator.check(BodyWeight(effective=_EFFECTIVE, device_id="dev-2", value=70.0)).accepted
         is True
     )
