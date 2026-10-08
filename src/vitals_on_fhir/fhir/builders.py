@@ -148,16 +148,18 @@ def build_capability_statement() -> CapabilityStatement:
                                 "name": "code",
                                 "type": "token",
                                 "documentation": (
-                                    "Filter by 'system|code', "
-                                    "e.g. http://loinc.org|8867-4."
+                                    "Filter by 'code', 'system|code', '|code', "
+                                    "or 'system|', e.g. http://loinc.org|8867-4."
                                 ),
                             },
                             {
                                 "name": "date",
                                 "type": "date",
                                 "documentation": (
-                                    "Filter by effectiveDateTime; supports the "
-                                    "ge, le, gt, and lt prefixes."
+                                    "Filter by effectiveDateTime at the precision "
+                                    "given; supports the eq, ge, gt, le, and lt "
+                                    "prefixes. Repeat for a range. A value "
+                                    "without a UTC offset is read as UTC."
                                 ),
                             },
                             {

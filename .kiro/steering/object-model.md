@@ -254,12 +254,15 @@ class ObservationStore(ABC):
         self,
         *,
         code: str | None = None,
-        date_from: datetime | None = None,
-        date_to: datetime | None = None,
+        system: str | None = None,         # "" = a coding without a system
+        date_from: datetime | None = None,  # inclusive, timezone-aware
+        date_before: datetime | None = None,  # exclusive, timezone-aware
         sort_desc: bool = True,
         count: int | None = None,
     ) -> list[Observation]: ...
 ```
+
+`code` and `system` must match the same `code.coding` entry (FHIR token search). The API turns each FHIR `date` search value into the half-open range `[date_from, date_before)`.
 
 ### `InMemoryObservationStore` (concrete, also an `ObservationSink`)
 

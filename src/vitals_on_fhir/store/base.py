@@ -59,17 +59,27 @@ class ObservationStore(abc.ABC):
         self,
         *,
         code: str | None = None,
+        system: str | None = None,
         date_from: datetime | None = None,
-        date_to: datetime | None = None,
+        date_before: datetime | None = None,
         sort_desc: bool = True,
         count: int | None = None,
     ) -> list[Observation]:
         """Search stored Observations with optional filters.
 
+        ``code`` and ``system`` follow FHIR token search: an Observation matches
+        when one of its ``code.coding`` entries matches both. The date bounds
+        are timezone-aware and form the half-open range
+        ``[date_from, date_before)``.
+
         Args:
-            code: LOINC code to filter by (e.g. ``"8867-4"``).
+            code: Coding code to filter by (e.g. ``"8867-4"``); ``None`` matches
+                any code.
+            system: Coding system the same coding must have (e.g.
+                ``"http://loinc.org"``); ``None`` matches any system and ``""``
+                matches only a coding without a system.
             date_from: Inclusive lower bound on ``effectiveDateTime``.
-            date_to: Inclusive upper bound on ``effectiveDateTime``.
+            date_before: Exclusive upper bound on ``effectiveDateTime``.
             sort_desc: If ``True`` (default), return newest first.
             count: Maximum number of results to return.  ``None`` means
                 no limit.

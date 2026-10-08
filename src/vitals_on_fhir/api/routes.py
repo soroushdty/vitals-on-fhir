@@ -32,7 +32,8 @@ Must NOT import from ``adapters``, ``validation``, ``pipeline``,
 
 from __future__ import annotations
 
-from datetime import datetime
+import re
+from datetime import UTC, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
@@ -51,9 +52,24 @@ if TYPE_CHECKING:
 #: Media type mandated for every FHIR response (FR-11).
 FHIR_MEDIA_TYPE = "application/fhir+json"
 
-#: Recognised ``date`` search-parameter prefixes and how each maps onto the
-#: store's inclusive ``date_from`` / ``date_to`` bounds.
-_DATE_PREFIXES = ("ge", "le", "gt", "lt")
+#: FHIR ``date`` search prefixes this server supports.
+_DATE_PREFIXES = ("eq", "ge", "gt", "le", "lt")
+
+#: Valid FHIR ``date`` prefixes this server does not support.
+_UNSUPPORTED_DATE_PREFIXES = ("ne", "sa", "eb", "ap")
+
+#: A FHIR ``date`` / ``dateTime`` search value at any precision from a year to
+#: fractions of a second.  A space may stand for the ``+`` of a UTC offset,
+#: because an unencoded ``+`` in a query string decodes to a space.
+_FHIR_DATE = re.compile(
+    r"(?P<year>\d{4})"
+    r"(?:-(?P<month>\d{2})"
+    r"(?:-(?P<day>\d{2})"
+    r"(?:T(?P<hour>\d{2}):(?P<minute>\d{2})"
+    r"(?::(?P<second>\d{2})(?:\.(?P<fraction>\d+))?)?"
+    r"(?P<offset>Z|[+\- ]\d{2}:\d{2})?"
+    r")?)?)?"
+)
 
 # Bearer-token extractor.  ``auto_error=False`` so a missing header does not
 # raise FastAPI's default 403; we translate every failure to 401 ourselves.
@@ -212,63 +228,151 @@ def fhir_response(resource: Resource, status_code: int = 200) -> Response:
     )
 
 
-def _parse_date_param(value: str | None) -> tuple[datetime | None, datetime | None]:
-    """Translate a FHIR ``date`` search parameter into store bounds.
+def _date_range(raw: str) -> tuple[datetime, datetime]:
+    """Return the half-open range ``[start, end)`` a FHIR date value covers.
 
-    Recognises the ``ge`` / ``le`` / ``gt`` / ``lt`` prefixes and maps them onto
-    inclusive ``(date_from, date_to)`` bounds understood by the store.  ``gt``
-    and ``lt`` are treated as their inclusive counterparts because the store
-    exposes only inclusive bounds; this is a conservative, well-defined
-    interpretation for the MVP.  A value that does not parse as ISO 8601 is
-    ignored (treated as unsupported), returning ``(None, None)`` (FR-11).
+    The value's precision sets the range: ``2026`` is the whole year,
+    ``2026-10-07`` the whole day, ``2026-10-07T12:00:00`` one second.  A value
+    without a UTC offset is read as UTC.
 
     Args:
-        value: The raw ``date`` query-parameter value, or ``None``.
+        raw: The search value without its prefix.
 
     Returns:
-        A ``(date_from, date_to)`` tuple; either element may be ``None``.
+        The timezone-aware ``(start, end)`` of the range.
+
+    Raises:
+        ValueError: If *raw* is not a valid FHIR date or dateTime.
+        OverflowError: If the range ends past the largest representable date.
     """
-    if value is None:
-        return None, None
+    match = _FHIR_DATE.fullmatch(raw)
+    if match is None:
+        msg = "not a FHIR date"
+        raise ValueError(msg)
+    part = match.groupdict()
 
-    prefix = ""
-    raw = value
-    for candidate in _DATE_PREFIXES:
-        if value.startswith(candidate):
-            prefix = candidate
-            raw = value[len(candidate) :]
-            break
+    tz: timezone = UTC
+    offset = part["offset"]
+    if offset is not None and offset != "Z":
+        sign = -1 if offset[0] == "-" else 1
+        hours, minutes = int(offset[1:3]), int(offset[4:6])
+        tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
 
-    try:
-        moment = datetime.fromisoformat(raw)
-    except ValueError:
-        return None, None
+    year = int(part["year"])
+    if part["month"] is None:
+        return datetime(year, 1, 1, tzinfo=tz), datetime(year + 1, 1, 1, tzinfo=tz)
+    month = int(part["month"])
+    if part["day"] is None:
+        start = datetime(year, month, 1, tzinfo=tz)
+        end = datetime(year + month // 12, month % 12 + 1, 1, tzinfo=tz)
+        return start, end
+    day = int(part["day"])
+    if part["hour"] is None:
+        start = datetime(year, month, day, tzinfo=tz)
+        return start, start + timedelta(days=1)
 
-    if prefix in ("ge", "gt"):
-        return moment, None
-    if prefix in ("le", "lt"):
-        return None, moment
-    # No recognised prefix: match the exact instant on both bounds.
-    return moment, moment
+    second = microsecond = 0
+    if part["second"] is None:
+        width = timedelta(minutes=1)
+    elif part["fraction"] is None:
+        second = int(part["second"])
+        width = timedelta(seconds=1)
+    else:
+        second = int(part["second"])
+        digits = part["fraction"][:6]  # datetime resolves microseconds
+        microsecond = int(digits.ljust(6, "0"))
+        width = timedelta(microseconds=10 ** (6 - len(digits)))
+    start = datetime(
+        year, month, day, int(part["hour"]), int(part["minute"]), second, microsecond, tzinfo=tz
+    )
+    return start, start + width
 
 
-def _parse_code_param(value: str | None) -> str | None:
-    """Extract the bare LOINC code from a FHIR ``token`` search parameter.
+def _parse_date_params(values: list[str] | None) -> tuple[datetime | None, datetime | None]:
+    """Translate FHIR ``date`` search parameters into store bounds.
 
-    Accepts either a plain ``code`` or the ``system|code`` token form and
-    returns just the ``code`` portion, which is what the store filters on.
+    Each value covers the range its precision implies (see
+    :func:`_date_range`); its prefix compares that range with the
+    Observation's ``effectiveDateTime`` instant ``t``:
+
+    - ``eq`` (or no prefix): ``start <= t < end``
+    - ``ge``: ``t >= start``;  ``gt``: ``t >= end``
+    - ``le``: ``t < end``;  ``lt``: ``t < start``
+
+    Repeated parameters must all match (``date=ge2026-10-01&date=lt2026-11-01``),
+    so their bounds are intersected.
+
+    Args:
+        values: Every ``date`` query-parameter value, or ``None``.
+
+    Returns:
+        ``(date_from, date_before)``: the inclusive lower and exclusive upper
+        bounds; either may be ``None``.
+
+    Raises:
+        FhirHttpError: With status 400 when a value is not a valid FHIR date or
+            its prefix is not supported (FR-11).
+    """
+    date_from: datetime | None = None
+    date_before: datetime | None = None
+    for value in values or []:
+        prefix, raw = value[:2], value[2:]
+        if not prefix.isalpha():
+            prefix, raw = "eq", value
+        if prefix in _UNSUPPORTED_DATE_PREFIXES:
+            raise FhirHttpError(
+                status_code=400,
+                issue_code="not-supported",
+                diagnostics=(
+                    f"The date prefix '{prefix}' is not supported; use eq, ge, gt, le, or lt."
+                ),
+            )
+        try:
+            if prefix not in _DATE_PREFIXES:
+                msg = "unknown prefix"
+                raise ValueError(msg)
+            start, end = _date_range(raw)
+        except (ValueError, OverflowError):
+            raise FhirHttpError(
+                status_code=400,
+                issue_code="invalid",
+                diagnostics=f"'{value}' is not a valid FHIR date search value.",
+            ) from None
+
+        low, high = {
+            "eq": (start, end),
+            "ge": (start, None),
+            "gt": (end, None),
+            "le": (None, end),
+            "lt": (None, start),
+        }[prefix]
+        if low is not None and (date_from is None or low > date_from):
+            date_from = low
+        if high is not None and (date_before is None or high < date_before):
+            date_before = high
+    return date_from, date_before
+
+
+def _parse_code_param(value: str | None) -> tuple[str | None, str | None]:
+    """Split a FHIR ``token`` search value into ``(system, code)``.
+
+    - ``code``: any system, so ``(None, code)``
+    - ``system|code``: ``(system, code)``
+    - ``|code``: a coding without a system, so ``("", code)``
+    - ``system|``: any code in the system, so ``(system, None)``
 
     Args:
         value: The raw ``code`` query-parameter value, or ``None``.
 
     Returns:
-        The bare code, or ``None`` when *value* is ``None``.
+        The ``(system, code)`` filters for the store; ``None`` matches anything.
     """
     if value is None:
-        return None
-    if "|" in value:
-        return value.split("|", 1)[1]
-    return value
+        return None, None
+    if "|" not in value:
+        return None, value
+    system, code = value.split("|", 1)
+    return system, code or None
 
 
 # ----------------------------------------------------------------------------
@@ -296,15 +400,16 @@ async def search_observations(
     request: Request,
     store: Annotated[ObservationStore, Depends(get_store)],
     code: Annotated[str | None, Query()] = None,
-    date: Annotated[str | None, Query()] = None,
+    date: Annotated[list[str] | None, Query()] = None,
     sort: Annotated[str | None, Query(alias="_sort")] = None,
     count: Annotated[int | None, Query(alias="_count", ge=0)] = None,
 ) -> Response:
     """Search stored FHIR Observations and return a searchset ``Bundle``.
 
-    Supported parameters (all optional): ``code`` (``system|code`` or bare
-    code), ``date`` (with ``ge`` / ``le`` / ``gt`` / ``lt`` prefixes),
-    ``_sort=-date`` (descending ``effectiveDateTime``), and ``_count`` (page
+    Supported parameters (all optional): ``code`` (a FHIR token: ``code``,
+    ``system|code``, ``|code``, or ``system|``), ``date`` (at any precision,
+    with the ``eq`` / ``ge`` / ``gt`` / ``le`` / ``lt`` prefixes; repeat it for
+    a range), ``_sort=-date`` (descending ``effectiveDateTime``), and ``_count`` (page
     size).  Unsupported parameters are ignored without error (FR-11).  The
     Bundle ``total`` reflects the number of matching Observations, not the page
     size, and each entry carries a ``fullUrl`` and the full Observation
@@ -314,25 +419,31 @@ async def search_observations(
         request: The incoming request, used to build absolute ``fullUrl`` values.
         store: The injected observation store.
         code: FHIR ``token`` filter on the Observation code.
-        date: FHIR ``date`` filter on ``effectiveDateTime``.
+        date: FHIR ``date`` filters on ``effectiveDateTime``, all of which
+            must match.
         sort: FHIR ``_sort``; only ``-date`` (descending) is honoured.
         count: FHIR ``_count`` page-size limit.
 
     Returns:
         A searchset ``Bundle`` as ``application/fhir+json``.
+
+    Raises:
+        FhirHttpError: With status 400 when a ``date`` value is invalid or uses
+            an unsupported prefix.
     """
     from fhir.resources.R4B.bundle import Bundle
 
-    loinc_code = _parse_code_param(code)
-    date_from, date_to = _parse_date_param(date)
+    system, code_value = _parse_code_param(code)
+    date_from, date_before = _parse_date_params(date)
     sort_desc = sort == "-date"
 
     # ``_count`` limits the page, not the match count: search without it so
     # ``total`` counts every match, then cut the page from the same snapshot.
     matches = await store.search(
-        code=loinc_code,
+        code=code_value,
+        system=system,
         date_from=date_from,
-        date_to=date_to,
+        date_before=date_before,
         sort_desc=sort_desc,
     )
     page = matches if count is None else matches[:count]
