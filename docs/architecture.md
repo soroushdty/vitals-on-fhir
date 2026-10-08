@@ -66,8 +66,18 @@ class BloodPressure(ComponentVital):
     loinc_code = "85354-9"
     us_core_profile = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"
     components = (
-        ComponentSpec(field_name="systolic", loinc_code="8480-6", ucum_unit="mm[Hg]", default_range=(50.0, 250.0)),
-        ComponentSpec(field_name="diastolic", loinc_code="8462-4", ucum_unit="mm[Hg]", default_range=(30.0, 150.0)),
+        ComponentSpec(
+            field_name="systolic",
+            loinc_code="8480-6",
+            ucum_unit="mm[Hg]",
+            default_range=(50.0, 250.0),
+        ),
+        ComponentSpec(
+            field_name="diastolic",
+            loinc_code="8462-4",
+            ucum_unit="mm[Hg]",
+            default_range=(30.0, 150.0),
+        ),
     )
     systolic: float
     diastolic: float
