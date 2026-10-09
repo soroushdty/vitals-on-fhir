@@ -30,6 +30,15 @@ Phases are opened one at a time by a decision record. What has shipped is listed
      (`vitals()` async generator) can express this, but `DeviceInfo` and the one-device-at-a-time
      assumption need revisiting. Expect a historical/batch pull, not near-real-time (NFR-1's real-time
      target was heart rate, not episodic weight).
+   - **To evaluate when this phase opens: finished ECG recordings.** An aggregator may expose short
+     ECG recordings that the device has already finished, such as Apple Watch 30-second strips in
+     HealthKit, with the device's own classification. Relaying them, without processing, would follow
+     the HL7 Personal Health Record IG's PGHD Electrocardiogram profile (`hl7.fhir.uv.phr`
+     1.0.0-ballot2, build 2026-09-17: a parent Observation with `classification` and `symptomsStatus` components and
+     one VoltageMeasurement Observation per lead in `hasMember`, each holding `valueSampledData`).
+     Weigh it against the raw-signal exclusion in `product.md`: an ECG is not a vital sign, and the
+     classification is a diagnosis-like statement. Whether Health Connect exposes ECG at all is
+     checked in #61. Profile: <https://build.fhir.org/ig/HL7/personal-health-record-format-ig/en/StructureDefinition-pghd-voltage-measurement.html>.
 
    Sources reviewed for this note were rephrased for licensing compliance; see RENPHO's sync
    documentation and the Android Health Connect data-types reference.

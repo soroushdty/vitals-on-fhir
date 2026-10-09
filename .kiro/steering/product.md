@@ -90,6 +90,7 @@ phase. They must not be built until their phase is opened.
 
 - Patient management or clinical decision support
 - Proprietary or reverse-engineered device protocols, and any circumvention of device security
+- Raw physiological signals (ECG, EEG, PPG, BCG, SCG, PCG, accelerometry, or similar): taking them in, storing them, or deriving values from them (for example beat detection). vitals-on-fhir converts finished values, measured by a device or computed by other software, into FHIR. A series of finished values, such as heart rate once per second, is not a raw signal, whatever FHIR type carries it. Observations may point to raw recordings kept elsewhere through `derivedFrom`. One narrow case is parked rather than excluded: relaying short ECG recordings that a device has already finished, read from a phase-3 aggregator, is evaluated when phase 3 opens (see `docs/roadmap.md`).
 
 ## Roadmap
 
