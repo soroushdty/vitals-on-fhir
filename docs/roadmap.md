@@ -36,3 +36,14 @@ Phases are opened one at a time by a decision record. What has shipped is listed
 
 4. **Persistence and outbound integration**: durable `ObservationStore` implementations, an `ObservationSink` that pushes to external FHIR servers, SMART on FHIR as an `Authenticator`, and adapter discovery through Python entry points.
 5. **Additional concrete adapters**, contributed or third-party, including optional device-specific ones as separately licensed packages with clean-room implementations and documented provenance.
+
+## Future ideas
+
+Ideas that are not phases. Each would need a decision record before any work starts.
+
+- **Custom sensors with on-device (edge) processing.** A sensor of our own, built on a microcontroller (for example ESP32 or nRF52) with firmware in C or C++, that turns the raw signal into a value on the chip and sends only the result. The firmware and this program never link together: they talk over a protocol, and the integration point is the `DeviceAdapter` boundary. In order of effort:
+  - *Firmware implements a standard Bluetooth health service.* Firmware SDKs such as Zephyr / nRF Connect and ESP-IDF include these services. The blood pressure, pulse oximeter, thermometer and weight scale adapters accept any device that advertises their service, so those need no code here. Heart rate needs a generic Heart Rate Service adapter, because `miband10` selects a device by its name; it would be a `BleHeartRateAdapter` subclass with its own `matches` and `device_info`.
+  - *Firmware uses a custom Bluetooth layout* (a reading with no standard service). Needs a `GattCharacteristicParser` for the payload; the shared `BleConnection` handles the connection.
+  - *Firmware uses another link* (Wi-Fi with MQTT, USB serial, LoRa). Needs a new `DeviceAdapter` subclass over that transport.
+
+  Sending raw waveforms (for example ECG samples) instead of computed values would be a larger change: FHIR represents them as `SampledData`, which this project does not produce.
