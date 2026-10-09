@@ -46,4 +46,4 @@ Ideas that are not phases. Each would need a decision record before any work sta
   - *Firmware uses a custom Bluetooth layout* (a reading with no standard service). Needs a `GattCharacteristicParser` for the payload; the shared `BleConnection` handles the connection.
   - *Firmware uses another link* (Wi-Fi with MQTT, USB serial, LoRa). Needs a new `DeviceAdapter` subclass over that transport.
 
-  Sending raw waveforms (for example ECG samples) instead of computed values would be a larger change: FHIR represents them as `SampledData`, which this project does not produce.
+  The firmware must send finished values. Raw physiological signals (for example ECG samples) are out of scope, as is deriving values from them; see `.kiro/steering/product.md`.
